@@ -1,0 +1,6 @@
+.DS_Store
+build
+*.plt 
+*~
+__pycache__
+
