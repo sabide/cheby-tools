@@ -1,1 +1,1 @@
-from .statistic_loader import *
+from .statistics_loader import *

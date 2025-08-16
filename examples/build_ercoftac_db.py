@@ -1,52 +1,3 @@
-from post.OperatorsSpectral import Cheb2D
-import numpy as np
-from numpy import pi
-import tecio_wrapper
-
-xmin , xmax = [-1,-2] , [+2,+3]
-
-n , n_dst = [32,32] , [24,18]
-
-ops = Cheb2D(xmin=xmin, xmax=xmax, n=n)
-X , Y = ops.grid()                     
-F = np.sin(np.pi*X) * np.cos(np.pi*Y)
-
-# Interpolation sur une grille cible
-x_dst = np.linspace(xmin[0],xmax[0],n_dst[0])
-y_dst = np.linspace(xmin[1],xmax[1],n_dst[1])
-X_dst , Y_dst = np.meshgrid( x_dst , y_dst , indexing='ij' )
-
-F_dst = ops.interpolate(F, x_dst, y_dst)
-   
-tecio_wrapper.write_szplt("spectral_o.plt", ["x", "y","fi","der"], [X,Y,ops.dx(F), pi * np.cos(pi*X) * np.cos(pi*Y)])
-tecio_wrapper.write_szplt("spectral_f.plt", ["x", "y","fi"], [X,Y,np.cos(np.pi*X) * np.cos(np.pi*Y) * pi])
-
-tecio_wrapper.write_szplt("spectral_i.plt", ["x", "y","fi"], [X_dst,Y_dst,F_dst])
- 
- 
-res = np.abs( ops.dx(F) - pi * np.cos(pi*X) * np.cos(pi*Y) )
-der , bb = ops.dx(F) ,  pi * np.cos(pi*X) * np.cos(pi*Y)
-for i in np.arange(n[0]):
-    print(der[i,3],bb[i,3],res[i,3])
- 
- 
-exit()
-
-
-x , y  = ops._x1_phys_ , ops._x2_phys_
-X,Y=np.meshgrid(x,y) 
-fi = np.cos(pi*X)*np.cos(pi*Y)
-tecio_wrapper.write_szplt("spectral.plt", ["x", "y","fi"], [X,Y,fi])
-# Cibles physiques quelconques
-x_t = np.linspace(-1, 1, 32)
-y_t = np.linspace(-1, 1, 64)
-X_t,Y_t=np.meshgrid(x_t,y_t) 
-
-FI_interp = ops.interpolate_cheb_x1x2(fi, x_t, y_t)  
-print(np.shape(FI_interp))
-#tecio_wrapper.write_szplt("interpolate.plt", ["x", "y","fi"], [X_t,Y_t,FI_interp])
-
-exit()
 from pathlib import Path
 
 def build_db_tree(db_name):
@@ -77,7 +28,7 @@ def permute_name(name):
 varnames = [permute_name(v) for v in varnames_sebilleau]
 print(varnames)
 
-import statistics_loader as sl 
+import stats as sl 
 
 db=sl.H5DB("stats_hii.h5")
 y, z = db.get_many("y", "z")
@@ -92,8 +43,17 @@ TT, vT, wT = db.get_many("T.T", "v.T", "w.T")
 #ux_ux , T_T= db.get_many("ux.ux","T.T")
 
 db.summary()
-import tecio_wrapper
-tecio_wrapper.write_szplt("toto.plt", ["y", "z","T.T","v.v"], [y,z,TT,vv])
+import tecio 
+tecio.write_szplt("toto.plt", ["y", "z","T.T","v.v"], [y,z,TT,vv])
+
+import numpy as np
+import discr as dis
+xmin, xmax = [0.0, 0.0], [1.0, 1.0]
+n=np.shape(y)
+#n = [48, 64]
+ops = dis.discr_2d(xmin=xmin, xmax=xmax, n=n)
+prof_y_num = ops.interpolate_line_x(F, x0, y_dst)
+
 
 # création d'un interpolateur 
 
