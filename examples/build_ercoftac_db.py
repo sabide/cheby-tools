@@ -53,11 +53,29 @@ n=np.shape(y)
 #n = [48, 64]
 ops = dis.discr_2d(xmin=xmin, xmax=xmax, n=n)
 
-tmp = ops.interpolate_line_x(TT, 0.2)
-print(tmp)
+#for y 
+#tmp = ops.interpolate_line_x(TT, 0.2)
+#tecio.write_ndarray_1d("demo_1d.plt", ["y", "TT"], [y[:,0],tmp])
 
-tecio.write_ndarray_1d("demo_1d.plt", ["y", "TT"], [y[:,0],tmp])
+##
+filename="/Users/abides/workdir/git/Cavity_DNS_database_ERCOFTAC/db_1e11_lin/Data_midwidth/Data_midwidth.dat"
+df = sl.load_dns_database_sebilleau(filename, ["x", "TT",])
+x_db , T_db = df['x'] , df['TT'] 
 
-# création d'un interpolateur 
+
+#filename="/Users/abides/workdir/git/Cavity_DNS_database_ERCOFTAC/db_1e11_lin/Basic_stat/Basic_stat_X_0p5.dat"
+
+#df = sl.load_dns_database_sebilleau(filename, ["y", "T" , "uu" ])
+#x_db , TT_db = df['y'] , df['uu'] 
+
+x_tmp,tmp= sl.wall_profile(x_db, T_db, mode=-1)
+tecio.write_ndarray_1d("sebilleau.plt", ["y", "TT"], [x_tmp,tmp])
+
+#tmp = ops.interpolate_line_x(T, 0.5,x_db)
+#x_tmp,tmp= sl.wall_profile(x_db, tmp, mode=-1)
+#tecio.write_ndarray_1d("david.plt", ["y", "TT"], [x_tmp,tmp])
+
+
+
 
 
