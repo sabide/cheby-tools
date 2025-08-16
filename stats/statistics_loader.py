@@ -75,9 +75,9 @@ class H5DB:
             ab_path = self._resolve(f"{a}.{b}")
             a_path = self._resolve(a)
             b_path = self._resolve(b)
-            arr_ab = self.file[ab_path][:]
-            arr_a = self.file[a_path][:]
-            arr_b = self.file[b_path][:]
+            arr_ab = np.transpose(self.file[ab_path][:])
+            arr_a = np.transpose(self.file[a_path][:])
+            arr_b = np.transpose(self.file[b_path][:])
             result = arr_ab - arr_a * arr_b
             self._cache[name] = result
             return result
@@ -86,7 +86,7 @@ class H5DB:
         if path not in self.file:
             raise KeyError(f"Missing dataset: {path} (for '{name}')")
 
-        arr = self.file[path][...]
+        arr = np.transpose(self.file[path][...])
         if not isinstance(arr, np.ndarray):
             arr = np.asarray(arr)
         self._cache[name] = arr

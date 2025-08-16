@@ -52,8 +52,11 @@ xmin, xmax = [0.0, 0.0], [1.0, 1.0]
 n=np.shape(y)
 #n = [48, 64]
 ops = dis.discr_2d(xmin=xmin, xmax=xmax, n=n)
-prof_y_num = ops.interpolate_line_x(F, x0, y_dst)
 
+tmp = ops.interpolate_line_x(TT, 0.2)
+print(tmp)
+
+tecio.write_ndarray_1d("demo_1d.plt", ["y", "TT"], [y[:,0],tmp])
 
 # création d'un interpolateur 
 
