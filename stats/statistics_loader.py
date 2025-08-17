@@ -167,3 +167,50 @@ class H5DB:
 
         #for label in self.paths:
         #    print(label, " -> ", self.paths[label])
+
+
+from typing import List
+
+def dotify_vars(tokens: List[str], base_vars: List[str]) -> List[str]:
+    """
+    Transforme une liste de noms en insérant des points entre segments reconnus.
+    - On privilégie un découpage par les variables fournies (base_vars), en greedy (plus longues d'abord).
+    - Si un morceau ne correspond à aucune base_var, on découpe caractère par caractère.
+    - Un seul segment -> inchangé. Plusieurs segments -> segments joints par '.'.
+
+    Exemple:
+    s = ["y","v","w","vv","ww","uv","k","T","Txuy"]
+    base = ["y","v","w","Tx","uy"]
+    -> ["y","v","w","v.v","w.w","u.v","k","T","Tx.uy"]
+    """
+    # Tri une fois pour toutes (plus longues d'abord) pour le greedy
+    base_sorted = sorted(set(base_vars), key=len, reverse=True)
+
+    out = []
+    for t in tokens:
+        # Si t est déjà une base_var reconnue, on ne touche pas
+        if t in base_vars:
+            out.append(t)
+            continue
+
+        segments = []
+        i = 0
+        n = len(t)
+        while i < n:
+            match = None
+            # Cherche le plus long préfixe reconnu
+            for v in base_sorted:
+                if t.startswith(v, i):
+                    match = v
+                    break
+            if match is not None:
+                segments.append(match)
+                i += len(match)
+            else:
+                # fallback caractère par caractère
+                segments.append(t[i])
+                i += 1
+
+        out.append(".".join(segments) if len(segments) > 1 else segments[0])
+
+    return out

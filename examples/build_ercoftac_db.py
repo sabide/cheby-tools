@@ -1,5 +1,8 @@
 from pathlib import Path
 
+
+
+# create the 
 def build_db_tree(db_name):
     # build the database tree of directories similar to Sebilleau
     base = Path(db_name)
@@ -12,29 +15,34 @@ def build_db_tree(db_name):
         d.mkdir(parents=True, exist_ok=True)
         print(f"créé: {d}")
 
+# build the database
 db_name='db_1e12'
 build_db_tree(db_name)
 
 # post-processing of the basic stats
 ## the variables to provide for comparisons
-
-varnames_sebilleau=["y","y+","U","V","uu","vv","ww","uv","T","TT","uT","vT"]
+varnames_sebilleau=["x","y","y+","U","V","uu","vv","ww","uv","T","TT","uT","vT"]
 mapping = {"x": "y", "y": "z","z": "x","u": "v","v": "w","w": "u"}
 def permute_name(name):
     out = ""
     for ch in name:
         out += mapping.get(ch.lower(), ch)
     return out
+
 varnames = [permute_name(v) for v in varnames_sebilleau]
+
+print("variables to load from the h5 stats")
 print(varnames)
+####
+
 
 import stats as sl 
 
 db=sl.H5DB("stats_hii.h5")
-y, z = db.get_many("y", "z")
+x, y = db.get_many("y","z")
 
-v, w, T = db.get_many("v", "w", "T")
-vv, ww, uu = db.get_many("v.v", "w.w", "u.u")
+U, V, T = db.get_many("v", "w", "T")
+uu, vv, ww = db.get_many("v.v", "w.w", "u.u")
 TT, vT, wT = db.get_many("T.T", "v.T", "w.T")
 
 #ux,uy,uz= db.get_many("ux", "uy", "uz")
@@ -43,26 +51,136 @@ TT, vT, wT = db.get_many("T.T", "v.T", "w.T")
 #ux_ux , T_T= db.get_many("ux.ux","T.T")
 
 db.summary()
+
 import tecio 
-tecio.write_szplt("toto.plt", ["y", "z","T.T","v.v"], [y,z,TT,vv])
+tecio.write_szplt("toto.plt", ["y", "x","V","U","T"], [y,x,V,U,T])
+
 
 import numpy as np
 import discr as dis
 xmin, xmax = [0.0, 0.0], [1.0, 1.0]
 n=np.shape(y)
-#n = [48, 64]
 ops = dis.discr_2d(xmin=xmin, xmax=xmax, n=n)
 
-#for y 
-#tmp = ops.interpolate_line_x(TT, 0.2)
-#tecio.write_ndarray_1d("demo_1d.plt", ["y", "TT"], [y[:,0],tmp])
+# export des profils pour la demande  
+filename="/Users/abides/workdir/git/Cavity_DNS_database_ERCOFTAC/db_1e11_lin/Basic_stat/Basic_stat_X_0p5.dat"
+df = sl.load_dns_database_sebilleau(filename, ["y", "U", "V", "uu", "vv", "ww", "k" , "T" ,"TT"])
+y, U , V , uu,vv,ww,k , T, TT = df['y'] , df['U'] , df['V'] , df['uu'], df['vv'], df['ww'], df['k'] , df['T'] ,df['TT'] 
+y, U, V, uu, vv, ww, k, T, TT = sl.wall_profiles( y, U, V, uu, vv, ww, k, T, TT, average=True) 
+tecio.write_ndarray_1d("Basic_stat_X_0p5_sebilleau.plt", 
+                       ["y", "U", "V" , "uu","vv","ww", "k" , "T" ,"TT"] , 
+                       [ y , U , V , uu , vv , ww , k , T , TT ] )
 
-##
+# export of the data from the sebilleau database
 filename="/Users/abides/workdir/git/Cavity_DNS_database_ERCOFTAC/db_1e11_lin/Data_midwidth/Data_midwidth.dat"
-df = sl.load_dns_database_sebilleau(filename, ["x", "TT",])
-x_db , T_db = df['x'] , df['TT'] 
+df = sl.load_dns_database_sebilleau(filename, ["x", "U", "V" , "uu" , "vv" , "k" , "T" ,"TT"])
+x , U , V , uu , vv , k , T , TT = df['x'], df['U'], df['V'], df['uu'], df['vv'], df['k'] ,df['T'] ,df['TT'] 
+ww = 2*k - uu - vv 
+x, U, V, uu, vv, ww, k, T, TT = sl.wall_profiles( x, U, V, uu, vv, ww, k, T, TT, average=True) 
+tecio.write_ndarray_1d("Data_midwidth_sebilleau.plt", 
+                       ["x", "U", "V" , "uu" , "vv" , "ww" , "k" , "T" ,"TT"] , 
+                       [x,U,V,uu,vv,ww,k,T,TT] )
+
+#
+varnames = [permute_name(v) for v in ["x", "U", "V" ,"uu" ,"vv" , "ww", "T" ,"TT"]]
+varnames_to_load=sl.dotify_vars(varnames,["u", "v" ,"T"])
+# to take a look on the variable to load with the statistic loader
+x,y,U,V,uu,vv,ww,T,TT=db.get_many('y','z','v', 'w', 'v.v', 'w.w', 'u.u', 'T', 'T.T')
+k=0.5*(uu+vv+ww)
+
+xv=x[:,0]
+yv=y[0,:]
+
+y0=0.5
+U, V, uu, vv, ww, k, T, TT = [
+    ops.interpolate_line_y(a, y0, xv) for a in (U, V, uu, vv, ww, k, T, TT)
+]
+print(T)
+xv,U,V,uu,vv,ww,k,T,TT=sl.wall_profiles(xv, U, V, uu, vv, ww, k, T, TT, average=True) 
+tecio.write_ndarray_1d("temp.plt", 
+                       ["x", "U", "V" , "uu" , "vv" , "ww" , "k" , "T" ,"TT"] , 
+                       [xv,U,V,uu,vv,ww,k,T,TT] )
 
 
+
+exit()
+
+
+
+
+
+
+
+
+
+
+
+x,U,V,uu,vv,ww,T,TT=db.get_many('y', 'v', 'w', 'u.u', 'v.v', 'w.w', 'T', 'T.T')
+k=0.5*(uu+vv+ww)
+##
+x0=0.5
+x=x[:,0]
+U = ops.interpolate_line_y(U,x0 ,x)
+V = ops.interpolate_line_y(V,x0 ,x)
+uu = ops.interpolate_line_y(uu,x0 ,x)
+vv = ops.interpolate_line_y(vv,x0,x)
+ww = ops.interpolate_line_y(ww,x0,x)
+k = ops.interpolate_line_y(k,x0,x)
+T = ops.interpolate_line_y(T,x0,x)
+TT = ops.interpolate_line_y(TT,x0,x)
+
+tecio.write_ndarray_1d("tcheby.plt", 
+                       ["x", "U", "V" , "k" , "T" ,"TT"] , 
+                       [x,U,-V,k,-T,TT] )
+
+
+y,U,V,uu,vv,ww,T,TT=db.get_many('z', 'v', 'w', 'u.u', 'v.v', 'w.w', 'T', 'T.T')
+k=0.5*(uu+vv+ww)
+
+
+
+ya,ka=sl.wall_profile(y,k)
+ya,TTa=sl.wall_profile(y,TT)
+tecio.write_ndarray_1d("sebilleau_X_0p5.plt", 
+                       ["y","k","TT"] , 
+                       [ya,ka,TTa] )
+
+z,U,V,uu,vv,ww,T,TT=db.get_many('z', 'v', 'w', 'u.u', 'v.v', 'w.w', 'T', 'T.T')
+k=0.5*(uu+vv+ww)
+
+y0=0.5
+y=z[0,:]
+
+U = ops.interpolate_line_x(U,y0 ,y)
+V = ops.interpolate_line_x(V,y0 ,y)
+uu = ops.interpolate_line_x(uu,y0 ,y)
+vv = ops.interpolate_line_x(vv,y0,y)
+ww = ops.interpolate_line_x(ww,y0,y)
+k = ops.interpolate_line_x(k,y0,y)
+T = ops.interpolate_line_x(T,y0,y)
+TT = ops.interpolate_line_x(TT,y0,y)
+k=0.5*(uu+vv+ww)
+
+tecio.write_ndarray_1d("tcheby-horizontal_0p5.plt", 
+                       ["y", "U", "V" , "k" , "T" ,"TT"] , 
+                       [y,-U,V,k,-T,TT] )
+
+
+ya,ka=sl.wall_profile(y,k)
+ya,TTa=sl.wall_profile(y,TT)
+tecio.write_ndarray_1d("tcheby-horizontal_0p5.plt", 
+                       ["y","k","TT"] , 
+                       [ya,ka,TTa] )
+
+
+
+print(U)
+
+
+
+
+
+exit()
 #filename="/Users/abides/workdir/git/Cavity_DNS_database_ERCOFTAC/db_1e11_lin/Basic_stat/Basic_stat_X_0p5.dat"
 
 #df = sl.load_dns_database_sebilleau(filename, ["y", "T" , "uu" ])
