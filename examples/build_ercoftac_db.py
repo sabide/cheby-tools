@@ -87,21 +87,27 @@ varnames_to_load=sl.dotify_vars(varnames,["u", "v" ,"T"])
 # to take a look on the variable to load with the statistic loader
 x,y,U,V,uu,vv,ww,T,TT=db.get_many('y','z','v', 'w', 'v.v', 'w.w', 'u.u', 'T', 'T.T')
 k=0.5*(uu+vv+ww)
-
-xv=x[:,0]
-yv=y[0,:]
-
-y0=0.5
+xv,yv,y0=x[:,0],y[0,:],0.5
 U, V, uu, vv, ww, k, T, TT = [
     ops.interpolate_line_y(a, y0, xv) for a in (U, V, uu, vv, ww, k, T, TT)
 ]
-print(T)
 xv,U,V,uu,vv,ww,k,T,TT=sl.wall_profiles(xv, U, V, uu, vv, ww, k, T, TT, average=True) 
-tecio.write_ndarray_1d("temp.plt", 
+
+tecio.write_ndarray_1d("Data_midwidth_tcheby.plt", 
                        ["x", "U", "V" , "uu" , "vv" , "ww" , "k" , "T" ,"TT"] , 
                        [xv,U,V,uu,vv,ww,k,T,TT] )
+# 
 
-
+x,y,U,V,uu,vv,ww,T,TT=db.get_many('y','z','v', 'w', 'v.v', 'w.w', 'u.u', 'T', 'T.T')
+k=0.5*(uu+vv+ww)
+xv,yv,x0=x[:,0],y[0,:],0.5
+U, V, uu, vv, ww, k, T, TT = [
+    ops.interpolate_line_x(a, x0, yv) for a in (U, V, uu, vv, ww, k, T, TT)
+]
+yv,U,V,uu,vv,ww,k,T,TT=sl.wall_profiles(yv, U, V, uu, vv, ww, k, T, TT, average=True) 
+tecio.write_ndarray_1d("Basic_stat_X_0p5_tcheby.plt", 
+                       ["y", "U", "V" , "uu" , "vv" , "ww" , "k" , "T" ,"TT"] , 
+                       [yv,U,V,uu,vv,ww,k,T,TT] )
 
 exit()
 
