@@ -1,5 +1,5 @@
 #!MC 1410
-$!VarSet |LFDSFN1| = '"temp.plt" "Data_midwidth_sebilleau.plt"'
+$!VarSet |LFDSFN1| = '"Data_midwidth_tcheby.plt" "Data_midwidth_sebilleau.plt"'
 $!VarSet |LFDSVL1| = '"x" "U" "V" "uu" "vv" "ww" "k" "T" "TT"'
 $!SetStyleBase Factory
 $!GlobalPaper 
