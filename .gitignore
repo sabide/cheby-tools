@@ -1,7 +1,13 @@
 .DS_Store
 build
+build-*
 *.plt 
 *~
 __pycache__
+._*
+*.egg-info/
+tecio_wrapper/*.so
+tecio_wrapper/*.dylib
+tecio_wrapper/*.pyd
 
 examples/stats_hii.h5
