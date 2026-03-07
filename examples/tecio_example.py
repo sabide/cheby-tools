@@ -1,4 +1,5 @@
-import tecio
+import tecio_wrapper as tec
 
-tecio.demo_1d()
-tecio.demo_2d()
+tec.demo_1d()
+tec.demo_2d()
+tec.demo_3d()
