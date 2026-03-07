@@ -48,3 +48,17 @@ else()
 endif()
 
 add_subdirectory(tecio_wrapper)
+
+include(GNUInstallDirs)
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/discr
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/python
+  FILES_MATCHING PATTERN "*.py"
+)
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/stats
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/python
+  FILES_MATCHING PATTERN "*.py"
+)
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/cheby_tool
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/python
+  FILES_MATCHING PATTERN "*.py"
+)
