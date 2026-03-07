@@ -4,6 +4,10 @@ project(cheby_tools_adastra LANGUAGES CXX)
 option(CHEBY_USE_BUNDLED_PYBIND11 "Build with the git submodule in external/pybind11." ON)
 option(CHEBY_USE_BUNDLED_TECIO "Build TecIO from external/tecio/teciosrc." ON)
 
+include(GNUInstallDirs)
+set(CHEBY_PYTHON_INSTALL_DIR "${CMAKE_INSTALL_LIBDIR}/python" CACHE STRING
+  "Install directory for Python modules, relative to CMAKE_INSTALL_PREFIX.")
+
 set(CHEBY_BOOST_INCLUDE_DIR "" CACHE PATH "Boost include directory (used when building bundled TecIO).")
 set(CHEBY_TECIO_INCLUDE_DIR "" CACHE PATH "TecIO include directory when using an external TecIO build.")
 set(CHEBY_TECIO_LIBRARY "" CACHE FILEPATH "Path to libtecio.a/.so/.dylib when using an external TecIO build.")
@@ -49,16 +53,35 @@ endif()
 
 add_subdirectory(tecio_wrapper)
 
-include(GNUInstallDirs)
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/discr
-  DESTINATION ${CMAKE_INSTALL_LIBDIR}/python
-  FILES_MATCHING PATTERN "*.py"
+  DESTINATION ${CHEBY_PYTHON_INSTALL_DIR}
+  FILES_MATCHING
+  PATTERN "*.py"
+  PATTERN "__pycache__" EXCLUDE
 )
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/stats
-  DESTINATION ${CMAKE_INSTALL_LIBDIR}/python
-  FILES_MATCHING PATTERN "*.py"
+  DESTINATION ${CHEBY_PYTHON_INSTALL_DIR}
+  FILES_MATCHING
+  PATTERN "*.py"
+  PATTERN "__pycache__" EXCLUDE
 )
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/cheby_tool
-  DESTINATION ${CMAKE_INSTALL_LIBDIR}/python
-  FILES_MATCHING PATTERN "*.py"
+  DESTINATION ${CHEBY_PYTHON_INSTALL_DIR}
+  FILES_MATCHING
+  PATTERN "*.py"
+  PATTERN "__pycache__" EXCLUDE
+)
+
+# Namespace install so everything is available under `cheby_tool`.
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/discr
+  DESTINATION ${CHEBY_PYTHON_INSTALL_DIR}/cheby_tool
+  FILES_MATCHING
+  PATTERN "*.py"
+  PATTERN "__pycache__" EXCLUDE
+)
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/stats
+  DESTINATION ${CHEBY_PYTHON_INSTALL_DIR}/cheby_tool
+  FILES_MATCHING
+  PATTERN "*.py"
+  PATTERN "__pycache__" EXCLUDE
 )

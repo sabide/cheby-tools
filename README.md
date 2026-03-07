@@ -1,3 +1,9 @@
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCHEBY_USE_BUNDLED_TECIO=ON
+  cmake --build build -j
+  cmake --install build --prefix build/install
+  export PYTHONPATH="$PWD/build/install/lib/python:$PYTHONPATH"
+
+
 # cheby-tools-adastra
 
 Build and install the Python module `tecio_wrapper` for:
@@ -28,6 +34,19 @@ Set Python path to the installed package:
 
 ```bash
 export PYTHONPATH="$PWD/build/install/lib/python:$PYTHONPATH"
+```
+
+You can then use either:
+
+```python
+import cheby_tool as ct
+ops = ct.discr.discr_2d(xmin=[0, 0], xmax=[1, 1], n=[16, 16])
+```
+
+or the backward-compatible direct modules:
+
+```python
+import discr, stats, tecio_wrapper
 ```
 
 You can also use presets:
@@ -81,5 +100,4 @@ Preset alternative:
 cmake --preset adastra-bundled
 cmake --build --preset adastra-bundled
 ```
-
 
