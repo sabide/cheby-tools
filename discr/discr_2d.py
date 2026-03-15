@@ -29,7 +29,7 @@ class discr_2d:
         # Lobatto nodes in [-1,1]
         self._x_hat_ = self.cheb_nodes(self._nx_)
         self._y_hat_ = self.cheb_nodes(self._ny_)
-
+        
         # Physical nodes and grid (indexing ij: (nx, ny))
         self._x_phys_ = self.affine_map(self._x_hat_, self._x_min_, self._x_max_)
         self._y_phys_ = self.affine_map(self._y_hat_, self._y_min_, self._y_max_)
@@ -56,7 +56,7 @@ class discr_2d:
     @staticmethod
     def affine_map(x_hat, a, b):
         """Affine map from [-1,1] to [a,b]."""
-        return 0.5 * (x_hat + 1.0) * (b - a) + a
+        return 0.5 * (-x_hat + 1.0) * (b - a) + a
 
     @staticmethod
     def cheb_D(N):
@@ -88,11 +88,19 @@ class discr_2d:
         with c[0]=c[N-1]=2, otherwise 1.
         """
         j = np.arange(N)
-        i = j[:, None]
-        C = np.cos(i * j * np.pi / (N - 1))     # (N,N)
-        c = np.ones(N); c[0] = c[-1] = 2.0
-        W = 1.0 / np.outer(c, c)                # (N,N)
-        P = (2.0 / (N - 1)) * (C * W)
+        k = j[:, None]
+
+        C = np.cos(k * j * np.pi / (N - 1))
+
+        w = np.ones(N)
+        w[0] = 0.5
+        w[-1] = 0.5
+
+        P = (2.0/(N-1)) * C * w
+
+        P[0,:] *= 0.5
+        P[-1,:] *= 0.5
+
         return P
 
     # ---------- derivatives ----------

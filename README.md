@@ -1,7 +1,20 @@
+
+pour constuire le projet 
+
+```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCHEBY_USE_BUNDLED_TECIO=ON
-  cmake --build build -j
-  cmake --install build --prefix build/install
-  export PYTHONPATH="$PWD/build/install/lib/python:$PYTHONPATH"
+cmake --build build -j
+cmake --install build --prefix build/install
+export PYTHONPATH="$PWD/build/install/lib/python:$PYTHONPATH"
+```
+Set Python path to the installed package:
+
+```bash
+export PYTHONPATH="$PWD/build/install/lib/python:$PYTHONPATH"
+```
+
+
+
 
 
 # cheby-tools-adastra
