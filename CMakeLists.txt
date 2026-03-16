@@ -1,8 +1,15 @@
 cmake_minimum_required(VERSION 3.18)
 project(cheby_tools_adastra LANGUAGES CXX)
 
+# Prefer the local Miniconda interpreter when available (macOS dev setup).
+if(NOT DEFINED Python_EXECUTABLE AND EXISTS "/opt/miniconda3/bin/python")
+  set(Python_EXECUTABLE "/opt/miniconda3/bin/python" CACHE FILEPATH
+    "Preferred Python interpreter for pybind11/FindPython.")
+endif()
+
 option(CHEBY_USE_BUNDLED_PYBIND11 "Build with the git submodule in external/pybind11." ON)
 option(CHEBY_USE_BUNDLED_TECIO "Build TecIO from external/tecio/teciosrc." ON)
+option(CHEBY_USE_BUNDLED_BOOST "Prefer Boost from external/boost when available." ON)
 
 include(GNUInstallDirs)
 set(CHEBY_PYTHON_INSTALL_DIR "${CMAKE_INSTALL_LIBDIR}/python" CACHE STRING
@@ -11,6 +18,16 @@ set(CHEBY_PYTHON_INSTALL_DIR "${CMAKE_INSTALL_LIBDIR}/python" CACHE STRING
 set(CHEBY_BOOST_INCLUDE_DIR "" CACHE PATH "Boost include directory (used when building bundled TecIO).")
 set(CHEBY_TECIO_INCLUDE_DIR "" CACHE PATH "TecIO include directory when using an external TecIO build.")
 set(CHEBY_TECIO_LIBRARY "" CACHE FILEPATH "Path to libtecio.a/.so/.dylib when using an external TecIO build.")
+
+if(CHEBY_USE_BUNDLED_BOOST AND NOT CHEBY_BOOST_INCLUDE_DIR)
+  if(EXISTS "${CMAKE_SOURCE_DIR}/external/boost/boost/version.hpp")
+    set(CHEBY_BOOST_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/external/boost" CACHE PATH
+      "Boost include directory (used when building bundled TecIO)." FORCE)
+  elseif(EXISTS "${CMAKE_SOURCE_DIR}/external/boost/libs/headers/include/boost/version.hpp")
+    set(CHEBY_BOOST_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/external/boost/libs/headers/include" CACHE PATH
+      "Boost include directory (used when building bundled TecIO)." FORCE)
+  endif()
+endif()
 
 if(CHEBY_USE_BUNDLED_PYBIND11)
   if(EXISTS "${CMAKE_SOURCE_DIR}/external/pybind11/CMakeLists.txt")
