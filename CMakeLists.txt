@@ -9,7 +9,7 @@ endif()
 
 option(CHEBY_USE_BUNDLED_TECIO "Build TecIO from external/tecio/teciosrc." ON)
 option(CHEBY_INSTALL_TECIO_WRAPPER "Build and install the tecio_wrapper Python extension." ON)
-option(CHEBY_INSTALL_POSTPROCESSING_TOOLS "Install the Python post-processing tools (discr, stats)." ON)
+option(CHEBY_INSTALL_POSTPROCESSING_TOOLS "Install the Python post-processing tools (discr, stats, spec_forge)." ON)
 
 include(GNUInstallDirs)
 set(CHEBY_PYTHON_INSTALL_DIR "${CMAKE_INSTALL_LIBDIR}/python" CACHE STRING
@@ -73,6 +73,12 @@ if(CHEBY_INSTALL_POSTPROCESSING_TOOLS)
     PATTERN "__pycache__" EXCLUDE
   )
   install(DIRECTORY ${CMAKE_SOURCE_DIR}/stats
+    DESTINATION ${CHEBY_PYTHON_INSTALL_DIR}
+    FILES_MATCHING
+    PATTERN "*.py"
+    PATTERN "__pycache__" EXCLUDE
+  )
+  install(DIRECTORY ${CMAKE_SOURCE_DIR}/spec_forge
     DESTINATION ${CHEBY_PYTHON_INSTALL_DIR}
     FILES_MATCHING
     PATTERN "*.py"

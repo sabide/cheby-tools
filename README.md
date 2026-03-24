@@ -4,6 +4,7 @@ Install:
 - `tecio_wrapper`
 - `discr`
 - `stats`
+- `spec_forge`
 
 ## 1) Clone with submodules
 
@@ -33,13 +34,13 @@ export PYTHONPATH="$PWD/build/install/lib/python:$PYTHONPATH"
 You can then use:
 
 ```python
-import discr, stats, tecio_wrapper
+import discr, stats, spec_forge, tecio_wrapper
 ops = discr.discr_2d(xmin=[0, 0], xmax=[1, 1], n=[16, 16])
 ```
 
 ## 3) Useful options
 
-Install only the post-processing tools (`discr`, `stats`):
+Install only the post-processing tools (`discr`, `stats`, `spec_forge`):
 
 ```bash
 cmake -S . -B build \
