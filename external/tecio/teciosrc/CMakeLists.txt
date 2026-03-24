@@ -6,14 +6,8 @@ endif ()
 
 project (tecio C CXX)
 
-FIND_PACKAGE(Boost 1.69.0)
-IF (Boost_FOUND)
-    INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIR})
-ELSE()
-    Set (Boost_INCLUDE_DIR /3rdpartylibs/boost/1.69.0/build/linux64-centos6.10/release/include)
-    message ("Warning:  Cannot find boost include directories.  Hardcoding to ${Boost_INCLUDE_DIR}")
-    INCLUDE_DIRECTORIES(SYSTEM ${Boost_INCLUDE_DIR})
-ENDIF()
+find_package(Boost 1.69.0 REQUIRED)
+include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 
 include_directories(.)
 
@@ -41,16 +35,3 @@ endif ()
 # Had to add this so building tecio care package within loci-chem works...
 set_target_properties(tecio PROPERTIES LINKER_LANGUAGE CXX)
 set_target_properties(szcombine PROPERTIES LINKER_LANGUAGE CXX)
-
-include(GNUInstallDirs)
-
-install(TARGETS tecio
-  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-)
-
-install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/
-  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/tecio
-  FILES_MATCHING PATTERN "*.h"
-)
-
-

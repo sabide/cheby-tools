@@ -14,7 +14,6 @@ target_link_libraries(tecio_wrapper PRIVATE ${CHEBY_TECIO_TARGET} pybind11::modu
 include(GNUInstallDirs)
 install(TARGETS tecio_wrapper
   LIBRARY DESTINATION ${CHEBY_PYTHON_INSTALL_DIR}/tecio_wrapper
-  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/__init__.py
   DESTINATION ${CHEBY_PYTHON_INSTALL_DIR}/tecio_wrapper

@@ -1,27 +1,9 @@
-
-pour constuire le projet 
-
-```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCHEBY_USE_BUNDLED_TECIO=ON
-cmake --build build -j
-cmake --install build --prefix build/install
-export PYTHONPATH="$PWD/build/install/lib/python:$PYTHONPATH"
-```
-Set Python path to the installed package:
-
-```bash
-export PYTHONPATH="$PWD/build/install/lib/python:$PYTHONPATH"
-```
-
-
-
-
-
 # cheby-tools-adastra
 
-Build and install the Python module `tecio_wrapper` for:
-- local macOS development
-- Adastra (HPC) builds
+Install:
+- `tecio_wrapper`
+- `discr`
+- `stats`
 
 ## 1) Clone with submodules
 
@@ -31,14 +13,13 @@ cd cheby-tools-adastra
 git submodule update --init --recursive
 ```
 
-## 2) Build with bundled TecIO (recommended)
+`pybind11` is taken from the repository submodule at `external/pybind11`.
 
-This mode builds `external/tecio/teciosrc` and links the Python extension against it.
+## 2) Build and install
 
 ```bash
 cmake -S . -B build \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DCHEBY_USE_BUNDLED_TECIO=ON
+  -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 cmake --install build --prefix build/install
 ```
@@ -49,29 +30,36 @@ Set Python path to the installed package:
 export PYTHONPATH="$PWD/build/install/lib/python:$PYTHONPATH"
 ```
 
-You can then use either:
-
-```python
-import cheby_tool as ct
-ops = ct.discr.discr_2d(xmin=[0, 0], xmax=[1, 1], n=[16, 16])
-```
-
-or the backward-compatible direct modules:
+You can then use:
 
 ```python
 import discr, stats, tecio_wrapper
+ops = discr.discr_2d(xmin=[0, 0], xmax=[1, 1], n=[16, 16])
 ```
 
-You can also use presets:
+## 3) Useful options
+
+Install only the post-processing tools (`discr`, `stats`):
 
 ```bash
-cmake --preset macos
-cmake --build --preset macos
+cmake -S . -B build \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCHEBY_INSTALL_TECIO_WRAPPER=OFF \
+  -DCHEBY_INSTALL_POSTPROCESSING_TOOLS=ON
+cmake --install build --prefix build/install
 ```
 
-## 3) Build with external/prebuilt TecIO
+Install only `tecio_wrapper`:
 
-Use this when TecIO is already compiled elsewhere.
+```bash
+cmake -S . -B build \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCHEBY_INSTALL_POSTPROCESSING_TOOLS=OFF
+cmake --build build -j
+cmake --install build --prefix build/install
+```
+
+Use an external/prebuilt TecIO:
 
 ```bash
 cmake -S . -B build \
@@ -83,14 +71,14 @@ cmake --build build -j
 cmake --install build --prefix build/install
 ```
 
-## 4) macOS notes
+## 4) Notes
 
-- Install prerequisites (example): `cmake`, `python`, compiler toolchain, and `boost`.
-- If Boost headers are not auto-detected when building bundled TecIO:
+- Prerequisites: `cmake`, `python`, compiler toolchain, and `boost`.
+- The default build uses bundled TecIO from the repository and system Boost.
+- If Boost is installed in a non-standard location, pass its include directory explicitly:
 
 ```bash
 cmake -S . -B build \
-  -DCHEBY_USE_BUNDLED_TECIO=ON \
   -DCHEBY_BOOST_INCLUDE_DIR=/opt/homebrew/include
 ```
 
@@ -106,11 +94,3 @@ cmake -S . -B build-adastra $CHEBY_ADASTRA_CMAKE_FLAGS
 cmake --build build-adastra -j
 cmake --install build-adastra --prefix build-adastra/install
 ```
-
-Preset alternative:
-
-```bash
-cmake --preset adastra-bundled
-cmake --build --preset adastra-bundled
-```
-
