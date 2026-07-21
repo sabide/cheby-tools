@@ -98,26 +98,25 @@ Only the Boost headers are required; no compiled Boost library is linked.
 With a modern system Boost, no option is needed: CMake uses `Boost::headers`
 (or `Boost::boost` on older CMake/Boost configurations).
 
-For a repository-local Boost without a system installation, place the headers
-under:
+Boost 1.88 headers required by TecIO are vendored under:
 
 ```text
 external/boost/boost/version.hpp
 ```
 
-The repository-local headers are detected automatically. They can also live
-elsewhere and be selected explicitly:
+They are detected automatically, so the default build needs no system Boost
+installation and no Boost-related CMake option. Alternative headers can still
+be selected explicitly:
 
 ```bash
 cmake -S . -B build \
   -DCHEBY_BOOST_INCLUDE_DIR=/path/to/boost-root
 ```
 
-On Adastra, this project deliberately uses the shared header-only copy and
-does not load the Boost MPI module:
+On Adastra, as on macOS, the project deliberately uses the repository-local
+header-only copy and does not load or link a Boost library module:
 
 ```bash
-export CHEBY_BOOST_INCLUDE_DIR=/lus/work/CT2A/c1916929/SHARED/opt/boost-1.88.0/include
 source env.sh
 ```
 

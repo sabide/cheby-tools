@@ -23,8 +23,10 @@ if [[ "$(python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_in
     return 1 2>/dev/null || exit 1
 fi
 
-# TecIO only needs Boost headers. Do not load/link a Boost library module.
-export CHEBY_BOOST_INCLUDE_DIR=/lus/work/CT2A/c1916929/SHARED/opt/boost-1.88.0/include
+# TecIO only needs the repository-local Boost headers. Do not load/link a
+# Boost library module.
+CHEBY_PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export CHEBY_BOOST_INCLUDE_DIR="${CHEBY_PROJECT_ROOT}/external/boost"
 
 if [[ ! -f "${CHEBY_BOOST_INCLUDE_DIR}/boost/version.hpp" ]]; then
     echo "Boost headers not found in ${CHEBY_BOOST_INCLUDE_DIR}" >&2

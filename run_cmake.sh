@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-: "${CHEBY_BOOST_INCLUDE_DIR:?Source env.sh before running this script}"
 : "${CHEBY_PYTHON_ENV:?Source env.sh before running this script}"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+: "${CHEBY_BOOST_INCLUDE_DIR:=${SCRIPT_DIR}/external/boost}"
 
 if [[ "${VIRTUAL_ENV:-}" != "$CHEBY_PYTHON_ENV" ]]; then
   echo "Expected active Python environment: $CHEBY_PYTHON_ENV" >&2
