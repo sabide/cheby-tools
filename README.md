@@ -34,13 +34,21 @@ export PYTHONPATH="$PWD/build/install/lib/python:$PYTHONPATH"
 You can then use:
 
 ```python
-import discr, stats, spec_forge, tecio_wrapper
-ops = discr.discr_2d(xmin=[0, 0], xmax=[1, 1], n=[16, 16])
+import stats, tecio_wrapper
+from spec_forge import SpectralDiscretization, SpectralInterpolate
+
+ops = SpectralDiscretization(
+    xmin=[0, 0],
+    xmax=[1, 1],
+    n=[16, 16],
+    bases=["chebyshev", "chebyshev"],
+)
 ```
 
 ## 3) Useful options
 
-Install only the post-processing tools (`discr`, `stats`, `spec_forge`):
+Install only the post-processing tools (`stats`, `spec_forge`, plus the
+deprecated `discr` compatibility facade):
 
 ```bash
 cmake -S . -B build \
@@ -83,6 +91,36 @@ cmake -S . -B build \
   -DCHEBY_BOOST_INCLUDE_DIR=/opt/homebrew/include
 ```
 
+Only the Boost headers are required; no compiled Boost library is linked.
+`CHEBY_BOOST_INCLUDE_DIR` must point to the directory containing
+`boost/version.hpp`.
+
+With a modern system Boost, no option is needed: CMake uses `Boost::headers`
+(or `Boost::boost` on older CMake/Boost configurations).
+
+For a repository-local Boost without a system installation, place the headers
+under:
+
+```text
+external/boost/boost/version.hpp
+```
+
+The repository-local headers are detected automatically. They can also live
+elsewhere and be selected explicitly:
+
+```bash
+cmake -S . -B build \
+  -DCHEBY_BOOST_INCLUDE_DIR=/path/to/boost-root
+```
+
+On Adastra, this project deliberately uses the shared header-only copy and
+does not load the Boost MPI module:
+
+```bash
+export CHEBY_BOOST_INCLUDE_DIR=/lus/work/CT2A/c1916929/SHARED/opt/boost-1.88.0/include
+source env.sh
+```
+
 ## 5) Adastra notes
 
 See [`cfg_adastra.sh`](./cfg_adastra.sh) for a reproducible build script using environment variables.
@@ -94,4 +132,44 @@ source cfg_adastra.sh
 cmake -S . -B build-adastra $CHEBY_ADASTRA_CMAKE_FLAGS
 cmake --build build-adastra -j
 cmake --install build-adastra --prefix build-adastra/install
+```
+
+### Project Python environment
+
+`cheby-tools` uses one Python 3.12 environment for NumPy, MPI-enabled h5py,
+mpi4py, the pure Python packages, and the compiled `tecio_wrapper` extension:
+
+```text
+/lus/work/CT2A/c1916929/SHARED/opt/post
+```
+
+Activate and validate it with:
+
+```bash
+source env.sh
+python check_python_env.py
+```
+
+Do not use `pip --user`: packages must be installed inside this environment so
+that Python, NumPy, h5py, mpi4py and the extension share the same ABI.
+
+The corresponding HPC runtime is fixed in `env.sh`: GNU programming
+environment, Cray MPICH 8.1.30 and parallel HDF5 1.14.3.1. Changing that stack
+requires rebuilding both mpi4py and h5py in the same Python environment.
+
+### Spectral API and tests
+
+`spec_forge` is the supported spectral API:
+
+```python
+from spec_forge import SpectralDiscretization, SpectralInterpolate
+```
+
+The historical `discr.discr_2d` API remains installed as a deprecated
+compatibility facade backed by `spec_forge`; new code should not use it.
+
+Run the numerical and compatibility tests from the source tree with:
+
+```bash
+python -m unittest discover -s tests -v
 ```

@@ -15,7 +15,8 @@ include(GNUInstallDirs)
 set(CHEBY_PYTHON_INSTALL_DIR "${CMAKE_INSTALL_LIBDIR}/python" CACHE STRING
   "Install directory for Python modules, relative to CMAKE_INSTALL_PREFIX.")
 
-set(CHEBY_BOOST_INCLUDE_DIR "" CACHE PATH "Optional Boost include directory override.")
+set(CHEBY_BOOST_INCLUDE_DIR "" CACHE PATH
+  "Boost headers root (the directory containing boost/).")
 set(CHEBY_TECIO_INCLUDE_DIR "" CACHE PATH "TecIO include directory when using an external TecIO build.")
 set(CHEBY_TECIO_LIBRARY "" CACHE FILEPATH "Path to libtecio.a/.so/.dylib when using an external TecIO build.")
 
@@ -40,8 +41,23 @@ if(CHEBY_INSTALL_TECIO_WRAPPER)
       message(FATAL_ERROR "Bundled TecIO not found at external/tecio/teciosrc.")
     endif()
 
+    # Prefer explicitly supplied or repository-local headers. Otherwise let
+    # TecIO discover a modern system Boost and consume Boost::headers.
+    if(NOT CHEBY_BOOST_INCLUDE_DIR
+       AND EXISTS "${CMAKE_SOURCE_DIR}/external/boost/boost/version.hpp")
+      set(CHEBY_BOOST_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/external/boost")
+    endif()
+
     if(CHEBY_BOOST_INCLUDE_DIR)
-      set(Boost_INCLUDE_DIR "${CHEBY_BOOST_INCLUDE_DIR}" CACHE PATH "Boost include directory" FORCE)
+      if(NOT EXISTS "${CHEBY_BOOST_INCLUDE_DIR}/boost/version.hpp")
+        message(FATAL_ERROR
+          "CHEBY_BOOST_INCLUDE_DIR must contain boost/version.hpp: "
+          "${CHEBY_BOOST_INCLUDE_DIR}")
+      endif()
+      set(Boost_INCLUDE_DIR "${CHEBY_BOOST_INCLUDE_DIR}" CACHE PATH
+        "Boost headers root" FORCE)
+      set(Boost_NO_SYSTEM_PATHS ON CACHE BOOL
+        "Use only the explicitly selected Boost headers" FORCE)
     endif()
 
     add_subdirectory(external/tecio/teciosrc)
@@ -71,17 +87,20 @@ if(CHEBY_INSTALL_POSTPROCESSING_TOOLS)
     FILES_MATCHING
     PATTERN "*.py"
     PATTERN "__pycache__" EXCLUDE
+    PATTERN "._*" EXCLUDE
   )
   install(DIRECTORY ${CMAKE_SOURCE_DIR}/stats
     DESTINATION ${CHEBY_PYTHON_INSTALL_DIR}
     FILES_MATCHING
     PATTERN "*.py"
     PATTERN "__pycache__" EXCLUDE
+    PATTERN "._*" EXCLUDE
   )
   install(DIRECTORY ${CMAKE_SOURCE_DIR}/spec_forge
     DESTINATION ${CHEBY_PYTHON_INSTALL_DIR}
     FILES_MATCHING
     PATTERN "*.py"
     PATTERN "__pycache__" EXCLUDE
+    PATTERN "._*" EXCLUDE
   )
 endif()

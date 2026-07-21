@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.18)
 
 if (NOT CMAKE_BUILD_TYPE)
     set (CMAKE_BUILD_TYPE Release CACHE STRING "CMake build type (Debug|Release)" FORCE)
@@ -6,8 +6,26 @@ endif ()
 
 project (tecio C CXX)
 
-find_package(Boost 1.69.0 REQUIRED)
-include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
+if (Boost_INCLUDE_DIR)
+    if (NOT EXISTS "${Boost_INCLUDE_DIR}/boost/version.hpp")
+        message(FATAL_ERROR
+            "Boost_INCLUDE_DIR must contain boost/version.hpp: ${Boost_INCLUDE_DIR}")
+    endif ()
+    add_library(tecio_boost_headers INTERFACE)
+    target_include_directories(tecio_boost_headers SYSTEM INTERFACE
+        "${Boost_INCLUDE_DIR}")
+    set(TECIO_BOOST_HEADERS_TARGET tecio_boost_headers)
+else ()
+    find_package(Boost 1.69.0 CONFIG REQUIRED)
+    if (TARGET Boost::headers)
+        set(TECIO_BOOST_HEADERS_TARGET Boost::headers)
+    elseif (TARGET Boost::boost)
+        set(TECIO_BOOST_HEADERS_TARGET Boost::boost)
+    else ()
+        message(FATAL_ERROR
+            "Boost was found but provides neither Boost::headers nor Boost::boost")
+    endif ()
+endif ()
 
 include_directories(.)
 
@@ -24,6 +42,10 @@ FILE(GLOB mainFiles "*.cpp" "*.h")
 LIST(REMOVE_ITEM mainFiles "${CMAKE_CURRENT_SOURCE_DIR}/szcombine.cpp")
 
 add_library(tecio STATIC ${mainFiles})
+
+# This interface target only propagates the Boost include directory. No
+# compiled Boost library is linked.
+target_link_libraries(tecio PRIVATE ${TECIO_BOOST_HEADERS_TARGET})
 
 add_executable(szcombine "szcombine.cpp")
 if (WIN32)
