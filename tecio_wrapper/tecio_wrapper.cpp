@@ -11,6 +11,164 @@
 
 namespace py = pybind11;
 
+
+class Szplt2DTimeWriter {
+public:
+    Szplt2DTimeWriter(const std::string& filename,
+                      const std::vector<std::string>& var_names,
+                      py::array_t<double, py::array::c_style | py::array::forcecast> x,
+                      py::array_t<double, py::array::c_style | py::array::forcecast> y)
+        : filename_(filename), var_names_(var_names)
+    {
+        if (var_names_.size() < 2)
+            throw std::runtime_error("var_names doit contenir au moins x y.");
+
+        bx_ = x.request();
+        by_ = y.request();
+
+        if (bx_.ndim != 2 || by_.ndim != 2)
+            throw std::runtime_error("x,y doivent être 2D.");
+
+        ny_ = static_cast<INTEGER4>(bx_.shape[0]);
+        nx_ = static_cast<INTEGER4>(bx_.shape[1]);
+
+        if (by_.shape[0] != ny_ || by_.shape[1] != nx_)
+            throw std::runtime_error("x,y doivent partager les mêmes dimensions.");
+
+        std::string var_list;
+        for (size_t i = 0; i < var_names_.size(); ++i) {
+            var_list += var_names_[i];
+            if (i + 1 < var_names_.size()) var_list += " ";
+        }
+
+        INTEGER4 debug = 0, is_double = 1, file_type = 0, file_fmt = 0, result = 0;
+
+        result = TECINI142("PyTecIO 2D time series",
+                           var_list.c_str(),
+                           filename_.c_str(),
+                           ".",
+                           &file_fmt, &file_type, &debug, &is_double);
+
+        if (result != 0)
+            throw std::runtime_error("TECINI142 a échoué.");
+
+        opened_ = true;
+
+        long long npts64 = 1LL * nx_ * ny_;
+        if (npts64 > std::numeric_limits<INTEGER4>::max())
+            throw std::runtime_error("nx*ny dépasse INTEGER4.");
+
+        num_pts_ = static_cast<INTEGER4>(npts64);
+        share_from_.assign(var_names_.size(), 0);
+    }
+
+    ~Szplt2DTimeWriter() {
+        if (opened_) TECEND142();
+    }
+
+    void add_zone(double sol_time,
+                  const std::vector<py::array_t<double, py::array::c_style | py::array::forcecast>>& fields)
+    {
+        if (!opened_)
+            throw std::runtime_error("Writer fermé.");
+
+        const size_t n_fields_expected = var_names_.size() - 2;
+
+        if (fields.size() != n_fields_expected)
+            throw std::runtime_error("Nombre de champs != var_names.size()-2.");
+
+        for (const auto& a : fields) {
+            auto b = a.request();
+            if (b.ndim != 2 || b.shape[0] != ny_ || b.shape[1] != nx_)
+                throw std::runtime_error("Chaque champ doit être 2D et matcher le mesh.");
+        }
+
+        INTEGER4 zone_type = 0; // Ordered
+        INTEGER4 one = 1;
+        INTEGER4 ICellMax = 0, JCellMax = 0, KCellMax = 0;
+        INTEGER4 ParentZn = 0;
+        INTEGER4 IsBlock = 1;
+        INTEGER4 NFConns = 0, FNMode = 0, TotalNumFaceNodes = 0;
+        INTEGER4 TotalNumBndryFaces = 0, TotalNumBndryConns = 0;
+        INTEGER4 ShareConnFromZone = 0;
+        INTEGER4 StrandID = 1;
+
+        INTEGER4* share_ptr = nullptr;
+        if (zone_index_ >= 2) {
+            std::fill(share_from_.begin(), share_from_.end(), 0);
+            share_from_[0] = 1; // x partagé depuis zone 1
+            share_from_[1] = 1; // y partagé depuis zone 1
+            share_ptr = share_from_.data();
+        }
+
+        std::string zname = "t=" + std::to_string(sol_time);
+
+        INTEGER4 result = TECZNE142(
+            zname.c_str(),
+            &zone_type,
+            &nx_, &ny_, &one,
+            &ICellMax, &JCellMax, &KCellMax,
+            &sol_time,
+            &StrandID, &ParentZn,
+            &IsBlock,
+            &NFConns, &FNMode, &TotalNumFaceNodes,
+            &TotalNumBndryFaces, &TotalNumBndryConns,
+            nullptr, nullptr, share_ptr,
+            &ShareConnFromZone
+        );
+
+        if (result != 0) {
+            TECEND142();
+            opened_ = false;
+            throw std::runtime_error("TECZNE142 a échoué.");
+        }
+
+        INTEGER4 is_double = 1;
+
+        auto write_block = [&](const double* ptr) {
+            INTEGER4 r = TECDAT142(&num_pts_, ptr, &is_double);
+            if (r != 0) {
+                TECEND142();
+                opened_ = false;
+                throw std::runtime_error("TECDAT142 a échoué.");
+            }
+        };
+
+        if (zone_index_ == 1) {
+            write_block(static_cast<const double*>(bx_.ptr));
+            write_block(static_cast<const double*>(by_.ptr));
+        }
+
+        for (const auto& a : fields) {
+            auto b = a.request();
+            write_block(static_cast<const double*>(b.ptr));
+        }
+
+        zone_index_ += 1;
+    }
+
+    void close() {
+        if (opened_) {
+            TECEND142();
+            opened_ = false;
+        }
+    }
+
+private:
+    std::string filename_;
+    std::vector<std::string> var_names_;
+
+    py::buffer_info bx_, by_;
+    INTEGER4 nx_{0}, ny_{0};
+    INTEGER4 num_pts_{0};
+
+    bool opened_{false};
+    int zone_index_{1};
+
+    std::vector<INTEGER4> share_from_;
+};
+
+
 void write_ndarray_1d(
     const std::string &filename,
     const std::vector<std::string> &var_names,
@@ -127,7 +285,7 @@ void hello(
 void write_szplt_2d(
     const std::string &filename,
     const std::vector<std::string> &var_names,
-    const std::vector<py::array_t<double,py::array::c_style | py::array::forcecast>> &vars)
+    const std::vector<py::array_t<double,py::array::f_style | py::array::forcecast>> &vars)
 {
     if (vars.empty())
         throw std::runtime_error("Aucune variable fournie.");
@@ -139,12 +297,13 @@ void write_szplt_2d(
     if (b0.ndim != 2)
         throw std::runtime_error("Chaque variable doit être un ndarray 2D (ny, nx).");
 
-    INTEGER4 ny = static_cast<INTEGER4>(b0.shape[0]);
-    INTEGER4 nx = static_cast<INTEGER4>(b0.shape[1]);
+    
+    INTEGER4 nx = static_cast<INTEGER4>(b0.shape[0]);
+    INTEGER4 ny = static_cast<INTEGER4>(b0.shape[1]);
     for (size_t i = 1; i < vars.size(); ++i) {
         auto bi = vars[i].request();
-        if (bi.ndim != 2 || bi.shape[0] != ny || bi.shape[1] != nx)
-            throw std::runtime_error("Toutes les variables doivent partager les mêmes dimensions (ny, nx).");
+        if (bi.ndim != 2 || bi.shape[0] != nx || bi.shape[1] != ny)
+            throw std::runtime_error("Toutes les variables doivent partager les mêmes dimensions (nx, ny).");
     }
 
     // Liste "Variables" TecIO (séparées par des espaces)
@@ -188,7 +347,7 @@ void write_szplt_2d(
     INTEGER4 NFConns  = 0, FNMode = 0, TotalNumFaceNodes = 0;
     INTEGER4 TotalNumBndryFaces = 0, TotalNumBndryConns = 0;
     INTEGER4 ShareConnFromZone = 0; // 0 => pas de partage de connectivité
-
+    
     result = TECZNE142(
         "Zone 1",
         &zone_type,
@@ -522,6 +681,15 @@ PYBIND11_MODULE(tecio_wrapper, m) {
   .def("add_zone", &Szplt3DWriter::add_zone, py::arg("sol_time"), py::arg("fields"))
   .def("close", &Szplt3DWriter::close);
 
+py::class_<Szplt2DTimeWriter>(m, "Szplt2DTimeWriter")
+    .def(py::init<const std::string&,
+                  const std::vector<std::string>&,
+                  py::array_t<double, py::array::c_style | py::array::forcecast>,
+                  py::array_t<double, py::array::c_style | py::array::forcecast>>(),
+         py::arg("filename"), py::arg("var_names"), py::arg("x"), py::arg("y"))
+    .def("add_zone", &Szplt2DTimeWriter::add_zone,
+         py::arg("sol_time"), py::arg("fields"))
+    .def("close", &Szplt2DTimeWriter::close);
 
 }
 

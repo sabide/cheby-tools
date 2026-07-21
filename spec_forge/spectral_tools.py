@@ -605,6 +605,81 @@ class SpectralDiscretization:
 
         return out
 
+    def nearest_index(self, coords):
+        """
+        Return the nearest grid indices (i,j,k,...) for a given physical point.
+        
+        Parameters
+        ----------
+        coords : sequence of floats
+        Physical coordinates [x0], [x0,y0], or [x0,y0,z0]
+    
+        Returns
+        -------
+        indices : tuple of ints
+        Indices of the closest grid point in each direction
+        """
+        coords = tuple(coords)
+        
+        if len(coords) != self.dim:
+            raise ValueError(
+                f"Expected {self.dim} coordinates, got {len(coords)}."
+            )
+        
+        idx = []
+        
+        for d in range(self.dim):
+            x = self.nodes[d]
+            x0 = coords[d]
+            
+            i = int(np.argmin(np.abs(x - x0)))
+            idx.append(i)
+            
+        return tuple(idx)
+        
+
+    
+    def interpolate_point_new(self, phi, *coords):
+        """
+        Interpolate nodal values at a single point.
+        
+        Accepts:
+        interpolate_point(phi, x0, y0, z0)
+        interpolate_point(phi, [x0, y0, z0])
+        """
+
+        # --------------------------------------------------
+        # Gestion flexible des coordonnées
+        # --------------------------------------------------
+        if len(coords) == 1 and np.iterable(coords[0]):
+            coords = tuple(coords[0])  # unpack list/array
+    
+        if len(coords) != self.dim:
+            raise ValueError(
+                f"Expected {self.dim} coordinates, got {len(coords)}."
+            )
+
+        # --------------------------------------------------
+        # nodal -> spectral
+        # --------------------------------------------------
+        print('dbg-1')
+        coeffs = self.spectral_coeffs(phi)
+        print('dbg-2')
+        # --------------------------------------------------
+        # interpolation via la méthode existante
+        # --------------------------------------------------
+        targets = [np.array([c], dtype=float) for c in coords]
+        out = self.interpolate(coeffs, *targets)
+        print('dbg-1')    
+        return np.asarray(out).reshape(-1)[0]
+
+    
+#    def interpolate_point(self, phi, *coords):
+#        coeffs = self.spectral_coeffs(phi)
+#        return self.interpolate_point(coeffs, *coords)
+
+
+    
     # --------------------------------------------------------
     # Convenient aliases
     # --------------------------------------------------------
@@ -692,7 +767,93 @@ class MatrixInterpBetween1D(InterpBetween1D):
         return np.einsum(subs, self.T, arr)
 
 
+
 class FourierInterpBetween1D(InterpBetween1D):
+    """
+    Uniform periodic grid -> uniform periodic grid interpolation on [a,b)
+    using FFT zero-padding / truncation along one axis.
+
+    Input  : nodal values on Nsrc Fourier grid
+    Output : nodal values on Ndst Fourier grid
+
+    If input is real, uses rfft/irfft to preserve Hermitian symmetry exactly.
+    """
+    def __init__(self, Nsrc, Ndst, a, b, axis=0, name="T", real_output_if_close=True):
+        super().__init__(axis=axis, basis="fourier", name=name)
+        self.Nsrc = int(Nsrc)
+        self.Ndst = int(Ndst)
+        self.a = float(a)
+        self.b = float(b)
+        self.real_output_if_close = bool(real_output_if_close)
+
+        if self.Nsrc < 1 or self.Ndst < 1:
+            raise ValueError("Fourier interpolation requires Nsrc >= 1 and Ndst >= 1.")
+
+    def apply(self, arr):
+        arr = np.asarray(arr)
+
+        if arr.ndim < 1 or arr.ndim > 3:
+            raise ValueError("arr must be 1D, 2D, or 3D.")
+
+        if not (0 <= self.axis < arr.ndim):
+            raise ValueError(f"axis={self.axis} incompatible with arr.ndim={arr.ndim}")
+
+        if arr.shape[self.axis] != self.Nsrc:
+            raise ValueError(
+                f"Size mismatch on axis {self.axis}: "
+                f"arr.shape[{self.axis}]={arr.shape[self.axis]} != Nsrc={self.Nsrc}"
+            )
+
+        # ----------------------------------------------------
+        # Real input: use rfft/irfft to preserve reality exactly
+        # ----------------------------------------------------
+        if np.isrealobj(arr):
+            ahat = np.fft.rfft(arr, axis=self.axis) / self.Nsrc
+
+            ahat = np.moveaxis(ahat, self.axis, 0)   # spectral axis first
+            Ksrc = ahat.shape[0]
+            Kdst = self.Ndst // 2 + 1
+
+            out_hat = np.zeros((Kdst,) + ahat.shape[1:], dtype=ahat.dtype)
+
+            kcopy = min(Ksrc, Kdst)
+            out_hat[:kcopy, ...] = ahat[:kcopy, ...]
+
+            # Nyquist handling when both sizes are even
+            # rfft stores Nyquist as the last coefficient, which must remain real.
+            if self.Nsrc % 2 == 0 and self.Ndst % 2 == 0 and kcopy == Ksrc == Kdst:
+                out_hat[-1, ...] = np.real(out_hat[-1, ...])
+
+            out = np.fft.irfft(self.Ndst * out_hat, n=self.Ndst, axis=0)
+            out = np.moveaxis(out, 0, self.axis)
+            return out
+
+        # ----------------------------------------------------
+        # Complex input: fallback to full fft/ifft
+        # ----------------------------------------------------
+        ahat = np.fft.fft(arr, axis=self.axis) / self.Nsrc
+        ahat = np.moveaxis(ahat, self.axis, 0)
+
+        out_hat = np.zeros((self.Ndst,) + ahat.shape[1:], dtype=ahat.dtype)
+
+        # copy low positive frequencies + low negative frequencies
+        if self.Nsrc % 2 == 0:
+            kpos_src = self.Nsrc // 2
+            out_hat[:kpos_src, ...] = ahat[:kpos_src, ...]
+            out_hat[-(self.Nsrc - kpos_src):, ...] = ahat[kpos_src:, ...]
+        else:
+            kpos_src = (self.Nsrc + 1) // 2
+            out_hat[:kpos_src, ...] = ahat[:kpos_src, ...]
+            out_hat[-(self.Nsrc - kpos_src):, ...] = ahat[kpos_src:, ...]
+
+        out = np.fft.ifft(self.Ndst * out_hat, axis=0)
+        out = np.moveaxis(out, 0, self.axis)
+
+        return np.real_if_close(out) if self.real_output_if_close else out
+
+    
+#------------
+class FourierInterpBetween1D_old(InterpBetween1D):
     """
     Uniform periodic grid -> uniform periodic grid interpolation on [a,b)
     using FFT + zero-padding / truncation.
@@ -1323,6 +1484,33 @@ def _test_interp_3d_roundtrip():
     assert err < 1e-10
 
 
+def _test_interp_point_2d():
+    print("=== test interpolation at one point 2D ===")
+
+    ops = SpectralDiscretization(
+        xmin=[0.0, -1.0],
+        xmax=[2*pi, 1.0],
+        n=[48, 41],
+        bases=["fourier", "chebyshev"]
+    )
+
+    x, y = ops.nodes
+    X, Y = np.meshgrid(x, y, indexing="ij")
+
+    phi = np.sin(2.0 * X) * np.cos(pi * Y) + 0.3 * np.cos(3.0 * X) * (Y**2 + 1.0)
+    a = ops.spectral_coeffs(phi)
+
+    x0 = 0.731
+    y0 = -0.234
+
+    val_num = ops.interpolate_point(a, x0, y0)
+    val_true = np.sin(2.0 * x0) * np.cos(pi * y0) + 0.3 * np.cos(3.0 * x0) * (y0**2 + 1.0)
+
+    err = abs(val_num - val_true)
+    print(f"[2D point interpolation] error = {err:.3e}")
+    assert err < 1e-10
+    
+
 if __name__ == "__main__":
     _test_1d_cheb_diff()
     _test_1d_fourier_diff()
@@ -1338,6 +1526,8 @@ if __name__ == "__main__":
     _test_interp_2d_fourier_cheb()
     _test_interp_3d_fourier_cheb_fourier()
     _test_interp_3d_roundtrip()
+
+    _test_interp_point_2d()
 
     _demo_usage()
     print("✓ All tests passed.")

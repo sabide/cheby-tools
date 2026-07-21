@@ -1,5 +1,5 @@
 import numpy as np
-from .tecio_wrapper import write_szplt_2d, write_ndarray_1d,write_szplt_3d ,Szplt3DWriter
+from .tecio_wrapper import write_szplt_2d, write_ndarray_1d,write_szplt_3d ,Szplt3DWriter, Szplt2DTimeWriter
 
 def demo_1d():
     """Petit exemple d’écriture 1D"""
