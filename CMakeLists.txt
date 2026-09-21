@@ -9,7 +9,7 @@ endif()
 
 option(CHEBY_USE_BUNDLED_TECIO "Build TecIO from external/tecio/teciosrc." ON)
 option(CHEBY_INSTALL_TECIO_WRAPPER "Build and install the tecio_wrapper Python extension." ON)
-option(CHEBY_INSTALL_POSTPROCESSING_TOOLS "Install the Python post-processing tools (discr, stats, spec_forge)." ON)
+option(CHEBY_INSTALL_PYTHON_CORE "Install the pure-Python cheby_tools package." ON)
 
 include(GNUInstallDirs)
 set(CHEBY_PYTHON_INSTALL_DIR "${CMAKE_INSTALL_LIBDIR}/python" CACHE STRING
@@ -20,10 +20,10 @@ set(CHEBY_BOOST_INCLUDE_DIR "" CACHE PATH
 set(CHEBY_TECIO_INCLUDE_DIR "" CACHE PATH "TecIO include directory when using an external TecIO build.")
 set(CHEBY_TECIO_LIBRARY "" CACHE FILEPATH "Path to libtecio.a/.so/.dylib when using an external TecIO build.")
 
-if(NOT CHEBY_INSTALL_TECIO_WRAPPER AND NOT CHEBY_INSTALL_POSTPROCESSING_TOOLS)
+if(NOT CHEBY_INSTALL_TECIO_WRAPPER AND NOT CHEBY_INSTALL_PYTHON_CORE)
   message(FATAL_ERROR
     "Nothing to install: enable CHEBY_INSTALL_TECIO_WRAPPER and/or "
-    "CHEBY_INSTALL_POSTPROCESSING_TOOLS.")
+    "CHEBY_INSTALL_PYTHON_CORE.")
 endif()
 
 if(CHEBY_INSTALL_TECIO_WRAPPER)
@@ -78,25 +78,11 @@ if(CHEBY_INSTALL_TECIO_WRAPPER)
     set(CHEBY_TECIO_TARGET tecio_external)
   endif()
 
-  add_subdirectory(tecio_wrapper)
+  add_subdirectory(native/tecio)
 endif()
 
-if(CHEBY_INSTALL_POSTPROCESSING_TOOLS)
-  install(DIRECTORY ${CMAKE_SOURCE_DIR}/discr
-    DESTINATION ${CHEBY_PYTHON_INSTALL_DIR}
-    FILES_MATCHING
-    PATTERN "*.py"
-    PATTERN "__pycache__" EXCLUDE
-    PATTERN "._*" EXCLUDE
-  )
-  install(DIRECTORY ${CMAKE_SOURCE_DIR}/stats
-    DESTINATION ${CHEBY_PYTHON_INSTALL_DIR}
-    FILES_MATCHING
-    PATTERN "*.py"
-    PATTERN "__pycache__" EXCLUDE
-    PATTERN "._*" EXCLUDE
-  )
-  install(DIRECTORY ${CMAKE_SOURCE_DIR}/spec_forge
+if(CHEBY_INSTALL_PYTHON_CORE)
+  install(DIRECTORY ${CMAKE_SOURCE_DIR}/cheby_tools
     DESTINATION ${CHEBY_PYTHON_INSTALL_DIR}
     FILES_MATCHING
     PATTERN "*.py"
