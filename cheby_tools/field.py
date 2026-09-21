@@ -20,6 +20,13 @@ class Field:
             raise ValueError("name must not be empty.")
 
         values = np.asarray(values)
+        if not np.issubdtype(values.dtype, np.number) or np.issubdtype(
+            values.dtype, np.bool_
+        ):
+            raise TypeError(
+                f"Field values must have a numeric, non-boolean dtype, "
+                f"got {values.dtype}."
+            )
         expected = tuple(discretization.n)
         if values.shape != expected:
             raise ValueError(

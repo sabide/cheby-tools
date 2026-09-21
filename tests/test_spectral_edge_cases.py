@@ -210,6 +210,17 @@ class InputValidationTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     discretization.interpolate_point(field, np.nan)
 
+    def test_interpolation_rejects_different_tiny_domains(self):
+        source = SpectralDiscretization(
+            [0.0], [1.0e-20], [8], ["fourier"]
+        )
+        destination = SpectralDiscretization(
+            [0.0], [2.0e-20], [16], ["fourier"]
+        )
+
+        with self.assertRaisesRegex(ValueError, "Domain mismatch"):
+            SpectralInterpolate(source, destination)
+
 
 if __name__ == "__main__":
     unittest.main()

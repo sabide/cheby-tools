@@ -303,10 +303,17 @@ class RepositoryCleanupTests(unittest.TestCase):
         cmake_source = (REPOSITORY_ROOT / "CMakeLists.txt").read_text(
             encoding="utf-8"
         )
+        gitignore_lines = (REPOSITORY_ROOT / ".gitignore").read_text(
+            encoding="utf-8"
+        ).splitlines()
 
         self.assertNotIn("_FourierInterpBetween1DLegacy", spectral_source)
         self.assertNotIn("tecio_wrapper", cmake_source)
         self.assertNotIn("CHEBY_INSTALL_TECIO_WRAPPER", cmake_source)
+        self.assertIn("*.plt", gitignore_lines)
+        self.assertNotIn("*.plt ", gitignore_lines)
+        self.assertFalse(any("tecio_wrapper" in line for line in gitignore_lines))
+        self.assertFalse(any("stats_hii" in line for line in gitignore_lines))
 
 
 if __name__ == "__main__":

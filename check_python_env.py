@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 import sys
+import importlib
 import importlib.util
 from pathlib import Path
 
@@ -44,4 +45,8 @@ print(f"[OK] cheby-tools : {Path(cheby_tools.__file__).resolve()}")
 if importlib.util.find_spec("cheby_tools._tecio") is None:
     print("[INFO] TecIO backend: not installed")
 else:
+    try:
+        importlib.import_module("cheby_tools._tecio")
+    except ImportError as exc:
+        fail(f"TecIO backend was found but cannot be imported: {exc}")
     print("[OK] TecIO backend: cheby_tools._tecio")

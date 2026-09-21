@@ -46,6 +46,23 @@ class FieldTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, r"expected shape.*24, 17"):
             Field(self.values[:, :-1], self.grid, "temperature")
 
+    def test_constructor_requires_numeric_non_boolean_values(self):
+        shape = tuple(self.grid.n)
+        invalid_values = (
+            np.full(shape, "invalid"),
+            np.full(shape, object(), dtype=object),
+            np.ones(shape, dtype=bool),
+        )
+
+        for values in invalid_values:
+            with self.subTest(dtype=values.dtype), self.assertRaisesRegex(
+                TypeError, "numeric"
+            ):
+                Field(values, self.grid, "u")
+
+        integer_field = Field(np.ones(shape, dtype=np.int32), self.grid, "u")
+        self.assertEqual(integer_field.values.dtype, np.int32)
+
     def test_constructor_rejects_invalid_grid_and_name(self):
         with self.assertRaises(TypeError):
             Field(self.values, object(), "u")
@@ -118,6 +135,42 @@ class FieldTests(unittest.TestCase):
     def test_interpolation_rejects_non_discretization_target(self):
         with self.assertRaises(TypeError):
             Field(self.values, self.grid, "u").interpolate(object())
+
+    def test_three_dimensional_mixed_basis_operations(self):
+        grid = SpectralDiscretization(
+            [0.0, -1.0, 0.0],
+            [2.0 * np.pi, 1.0, 2.0 * np.pi],
+            [12, 9, 10],
+            ["fourier", "chebyshev", "fourier"],
+        )
+        x, y, z = grid.meshgrid()
+        values = np.sin(2.0 * x) * (1.0 + y**2) + 0.5 * np.cos(3.0 * z)
+        field = Field(values, grid, "temperature")
+
+        expected_derivatives = (
+            2.0 * np.cos(2.0 * x) * (1.0 + y**2),
+            2.0 * y * np.sin(2.0 * x),
+            -1.5 * np.sin(3.0 * z),
+        )
+        for axis, expected in enumerate(expected_derivatives):
+            with self.subTest(axis=axis):
+                np.testing.assert_allclose(
+                    field.derivative(axis).values, expected, atol=2e-11
+                )
+
+        target = SpectralDiscretization(
+            [0.0, -1.0, 0.0],
+            [2.0 * np.pi, 1.0, 2.0 * np.pi],
+            [18, 13, 16],
+            ["fourier", "chebyshev", "fourier"],
+        )
+        xt, yt, zt = target.meshgrid()
+        expected = (
+            np.sin(2.0 * xt) * (1.0 + yt**2) + 0.5 * np.cos(3.0 * zt)
+        )
+        np.testing.assert_allclose(
+            field.interpolate(target).values, expected, atol=2e-11
+        )
 
     def test_non_contiguous_complex_values_are_preserved(self):
         values = np.asfortranarray(self.values) * (1.0 + 0.5j)

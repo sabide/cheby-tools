@@ -67,8 +67,15 @@ void write_plt(const std::string& filename,
         if (names[index].empty()) {
             throw std::invalid_argument("variable names must not be empty");
         }
+        if (names[index].find('\0') != std::string::npos ||
+            names[index].find('\n') != std::string::npos) {
+            throw std::invalid_argument(
+                "variable names must not contain NUL or newline characters");
+        }
         if (index != 0) {
-            variables += " ";
+            // TecIO chooses newline as the list delimiter when present.  It
+            // therefore preserves spaces and commas inside variable names.
+            variables += "\n";
         }
         variables += names[index];
     }

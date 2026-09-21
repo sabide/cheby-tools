@@ -54,6 +54,23 @@ class TecIOAdapterTests(unittest.TestCase):
 
         self.assertEqual(len(backend.calls), 1)
 
+    def test_field_names_may_contain_spaces_but_not_tecio_separators(self):
+        backend = RecordingBackend()
+        field = Field(self.x, self.grid, "velocity magnitude")
+
+        with mock.patch.object(tecio, "_backend", backend):
+            tecio.write_plt("field.plt", field)
+
+        self.assertEqual(backend.calls[0][1], ["x", "y", "velocity magnitude"])
+
+        for name in ("line\nbreak", "null\0byte"):
+            with self.subTest(name=name), mock.patch.object(
+                tecio, "_backend", backend
+            ), self.assertRaisesRegex(ValueError, "TecIO"):
+                tecio.write_plt(
+                    "field.plt", Field(self.x, self.grid, name)
+                )
+
     def test_equivalent_distinct_grids_are_accepted(self):
         other = self.make_grid()
         fields = [
@@ -96,10 +113,15 @@ class TecIOAdapterTests(unittest.TestCase):
 
     def test_missing_backend_is_actionable(self):
         field = Field(np.ones(tuple(self.grid.n)), self.grid, "u")
+        load_error = ImportError("missing TecIO shared library")
 
-        with mock.patch.object(tecio, "_backend", None):
-            with self.assertRaisesRegex(ImportError, r"CMake.*TecIO"):
+        with mock.patch.object(tecio, "_backend", None), mock.patch.object(
+            tecio, "_backend_import_error", load_error
+        ):
+            with self.assertRaisesRegex(ImportError, r"CMake.*TecIO") as caught:
                 tecio.write_plt("field.plt", field)
+
+        self.assertIs(caught.exception.__cause__, load_error)
 
     def test_one_and_three_dimensional_backend_shapes(self):
         cases = (

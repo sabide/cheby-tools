@@ -8,8 +8,11 @@ from .field import Field
 
 try:
     from . import _tecio as _backend
-except ImportError:
+except ImportError as exc:
     _backend = None
+    _backend_import_error = exc
+else:
+    _backend_import_error = None
 
 
 def _same_grid(left, right):
@@ -54,6 +57,11 @@ def write_plt(path, fields):
     grid = fields[0].discretization
     coordinate_names = ["x", "y", "z"][: grid.dim]
     names = [field.name for field in fields]
+    invalid_names = [name for name in names if "\0" in name or "\n" in name]
+    if invalid_names:
+        raise ValueError(
+            "TecIO field names must not contain NUL or newline characters."
+        )
     if len(set(names)) != len(names):
         raise ValueError("Field names must be unique.")
     collisions = set(names).intersection(coordinate_names)
@@ -74,7 +82,7 @@ def write_plt(path, fields):
         raise ImportError(
             "CMake must build and install the native TecIO backend before "
             "write_plt can be used."
-        )
+        ) from _backend_import_error
 
     axes = tuple(range(grid.dim - 1, -1, -1))
     source_arrays = [*grid.meshgrid(), *(field.values for field in fields)]

@@ -973,7 +973,7 @@ class SpectralInterpolate:
             a_dst = ops_dst.xmin[axis]
             b_dst = ops_dst.xmax[axis]
 
-            if abs(a_src - a_dst) > 1e-14 or abs(b_src - b_dst) > 1e-14:
+            if a_src != a_dst or b_src != b_dst:
                 raise ValueError(
                     f"Domain mismatch on axis {axis}: "
                     f"[{a_src},{b_src}] != [{a_dst},{b_dst}]"

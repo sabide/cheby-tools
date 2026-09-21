@@ -10,7 +10,7 @@ from cheby_tools import tecio
 
 @unittest.skipIf(tecio._backend is None, "native TecIO backend is not installed")
 class NativeTecIOTests(unittest.TestCase):
-    def test_multifield_output_is_nonempty(self):
+    def test_multifield_output_has_classic_header_and_spaced_name(self):
         grid = SpectralDiscretization(
             [0.0, -1.0],
             [2.0 * np.pi, 1.0],
@@ -18,7 +18,10 @@ class NativeTecIOTests(unittest.TestCase):
             ["fourier", "chebyshev"],
         )
         x, y = grid.meshgrid()
-        fields = [Field(np.sin(x), grid, "u"), Field(y**2, grid, "v")]
+        fields = [
+            Field(np.sin(x), grid, "u"),
+            Field(y**2, grid, "velocity magnitude"),
+        ]
 
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "fields.plt"
@@ -26,6 +29,7 @@ class NativeTecIOTests(unittest.TestCase):
 
             self.assertTrue(output.is_file())
             self.assertGreater(output.stat().st_size, 0)
+            self.assertEqual(output.read_bytes()[:8], b"#!TDV112")
 
 
 if __name__ == "__main__":
