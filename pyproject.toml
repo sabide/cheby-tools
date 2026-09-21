@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["scikit-build-core>=1.0"]
+build-backend = "scikit_build_core.build"
 
 [project]
 name = "cheby-tools"
@@ -23,22 +23,39 @@ classifiers = [
 [project.optional-dependencies]
 dev = [
     "build>=1.2",
-    "setuptools>=68",
+    "scikit-build-core>=1.0",
     "twine>=5",
-    "wheel",
 ]
 
 [project.urls]
 Repository = "https://github.com/sabide/cheby-tools"
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = [
-    "cheby_tools",
-    "cheby_tools.*",
+[tool.scikit-build]
+minimum-version = "build-system.requires"
+wheel.packages = ["cheby_tools"]
+sdist.inclusion-mode = "explicit"
+sdist.include = [
+    "pyproject.toml",
+    "README.md",
+    "cheby_tools/**",
+    "CMakeLists.txt",
+    "native/tecio/**",
+    "external/boost/**",
+    "external/tecio/teciosrc/**",
+    "external/pybind11/CMakeLists.txt",
+    "external/pybind11/LICENSE",
+    "external/pybind11/include/**",
+    "external/pybind11/tools/**",
+    "examples/*.py",
 ]
-exclude = [
-    "external*",
-    "native*",
-    "tests*",
+sdist.exclude = [
+    "tests/**",
+    "docs/**",
+    "external/pybind11/docs/**",
+    "external/pybind11/tests/**",
+    "build/**",
+    "dist/**",
 ]
+
+[tool.scikit-build.cmake.define]
+CHEBY_INSTALL_PYTHON_CORE = false

@@ -92,8 +92,8 @@ def write_plt(path, fields):
 
     if _backend is None:
         raise ImportError(
-            "CMake must build and install the native TecIO backend before "
-            "write_plt can be used."
+            "TecIO backend is not installed. Reinstall with: "
+            "python -m pip install -e <cheby-tools-path>"
         ) from _backend_import_error
 
     axes = tuple(range(grid.dim - 1, -1, -1))

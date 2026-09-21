@@ -11,6 +11,13 @@ target_compile_features(_tecio PRIVATE cxx_std_14)
 target_include_directories(_tecio PRIVATE "${CHEBY_TECIO_INCLUDE_DIR}")
 target_link_libraries(_tecio PRIVATE ${CHEBY_TECIO_TARGET} pybind11::module)
 
+if(SKBUILD)
+  set(CHEBY_TECIO_PYTHON_DESTINATION "cheby_tools")
+else()
+  set(CHEBY_TECIO_PYTHON_DESTINATION
+    "${CHEBY_PYTHON_INSTALL_DIR}/cheby_tools")
+endif()
+
 install(TARGETS _tecio
-  LIBRARY DESTINATION ${CHEBY_PYTHON_INSTALL_DIR}/cheby_tools
+  LIBRARY DESTINATION "${CHEBY_TECIO_PYTHON_DESTINATION}"
 )

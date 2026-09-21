@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import tomllib
 import unittest
 import zipfile
 
@@ -13,28 +14,106 @@ import zipfile
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 
 
+class PackagingConfigurationTests(unittest.TestCase):
+    def run_cmake(self, source, build, *definitions):
+        return subprocess.run(
+            [
+                "cmake",
+                "-S",
+                str(source),
+                "-B",
+                str(build),
+                *definitions,
+            ],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=False,
+        )
+
+    def test_scikit_build_core_owns_python_and_cmake_packaging(self):
+        with (REPOSITORY_ROOT / "pyproject.toml").open("rb") as stream:
+            configuration = tomllib.load(stream)
+
+        build_system = configuration["build-system"]
+        self.assertEqual(
+            build_system["build-backend"], "scikit_build_core.build"
+        )
+        self.assertTrue(
+            any(
+                requirement.startswith("scikit-build-core>=1.0")
+                for requirement in build_system["requires"]
+            )
+        )
+
+        scikit_build = configuration["tool"]["scikit-build"]
+        self.assertEqual(scikit_build["wheel"]["packages"], ["cheby_tools"])
+        self.assertEqual(scikit_build["sdist"]["inclusion-mode"], "explicit")
+        self.assertFalse(
+            scikit_build["cmake"]["define"]["CHEBY_INSTALL_PYTHON_CORE"]
+        )
+        included = scikit_build["sdist"]["include"]
+        for required in (
+            "pyproject.toml",
+            "README.md",
+            "cheby_tools/**",
+            "CMakeLists.txt",
+            "native/tecio/**",
+            "external/boost/**",
+            "external/tecio/teciosrc/**",
+            "external/pybind11/CMakeLists.txt",
+            "external/pybind11/LICENSE",
+            "external/pybind11/include/**",
+            "external/pybind11/tools/**",
+        ):
+            self.assertIn(required, included)
+        self.assertNotIn("external/pybind11/**", included)
+
+    def test_obsolete_setuptools_manifest_is_absent(self):
+        self.assertFalse((REPOSITORY_ROOT / "MANIFEST.in").exists())
+
+    def test_scikit_build_context_allows_python_only_install(self):
+        with tempfile.TemporaryDirectory(prefix="cheby-cmake-python-only-") as tmp:
+            result = self.run_cmake(
+                REPOSITORY_ROOT,
+                Path(tmp) / "build",
+                "-DSKBUILD=ON",
+                "-DCHEBY_INSTALL_TECIO=OFF",
+                "-DCHEBY_INSTALL_PYTHON_CORE=OFF",
+            )
+        self.assertEqual(result.returncode, 0, result.stdout)
+
+    def test_missing_pybind11_reports_submodule_recovery_command(self):
+        with tempfile.TemporaryDirectory(prefix="cheby-missing-pybind11-") as tmp:
+            source = Path(tmp) / "project"
+            shutil.copytree(
+                REPOSITORY_ROOT,
+                source,
+                ignore=shutil.ignore_patterns(
+                    ".git", "build", "dist", "__pycache__", "pybind11"
+                ),
+            )
+            result = self.run_cmake(source, Path(tmp) / "build")
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn("git submodule update --init --recursive", result.stdout)
+
+
 class DistributionTests(unittest.TestCase):
     def copy_distribution_sources(self, destination):
         destination = Path(destination)
-        for filename in ("pyproject.toml", "README.md", "MANIFEST.in"):
+        for filename in ("CMakeLists.txt", "pyproject.toml", "README.md"):
             shutil.copy2(REPOSITORY_ROOT / filename, destination / filename)
 
-        for directory in (
-            "cheby_tools",
-            "spec_forge",
-            "discr",
-            "stats",
-            "examples",
-        ):
-            source = REPOSITORY_ROOT / directory
-            if source.exists():
-                shutil.copytree(
-                    source,
-                    destination / directory,
-                    ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
-                )
+        for directory in ("cheby_tools", "examples", "native", "external"):
+            shutil.copytree(
+                REPOSITORY_ROOT / directory,
+                destination / directory,
+                ignore=shutil.ignore_patterns(
+                    ".git", "__pycache__", "*.pyc", "._*"
+                ),
+            )
 
-        for directory in ("external", "native", "tests"):
+        for directory in ("stats", "discr", "spec_forge"):
             marker_directory = destination / directory
             marker_directory.mkdir()
             (marker_directory / "must_not_ship.py").write_text(
@@ -74,6 +153,7 @@ sys.path[:] = [
 ]
 
 from cheby_tools import Field, SpectralDiscretization
+from cheby_tools import _tecio
 
 grid = SpectralDiscretization([0.0], [2.0 * np.pi], [24], ["fourier"])
 field = Field(np.sin(3.0 * grid.nodes[0]), grid, "u")
@@ -87,6 +167,7 @@ removed_modules = {
 print(json.dumps({
     "error": error,
     "removed_modules": removed_modules,
+    "tecio_backend": _tecio.__file__,
     "version": version("cheby-tools"),
 }))
 """
@@ -98,6 +179,7 @@ print(json.dumps({
         result = json.loads(output.strip().splitlines()[-1])
         self.assertLess(result["error"], 2.0e-12)
         self.assertTrue(all(result["removed_modules"].values()))
+        self.assertIn("_tecio", result["tecio_backend"])
         self.assertEqual(result["version"], "0.1.0")
 
     def run_quickstart(self, example, installed, working_directory):
@@ -139,8 +221,16 @@ print(json.dumps({
             wheels = list(wheelhouse.glob("cheby_tools-*.whl"))
             self.assertEqual(len(wheels), 1, wheels)
             wheel = wheels[0]
+            self.assertNotIn("py3-none-any", wheel.name)
             with zipfile.ZipFile(wheel) as archive:
                 names = set(archive.namelist())
+                extension_members = [
+                    name
+                    for name in names
+                    if name.startswith("cheby_tools/_tecio")
+                    and name.endswith((".so", ".dylib", ".pyd"))
+                ]
+                self.assertEqual(len(extension_members), 1, extension_members)
                 for member in (
                     "cheby_tools/__init__.py",
                     "cheby_tools/field.py",
@@ -153,7 +243,6 @@ print(json.dumps({
                 )
                 self.assertFalse(any(name.startswith("discr/") for name in names))
                 self.assertFalse(any(name.startswith("stats/") for name in names))
-                self.assertFalse(any(name.startswith("native/") for name in names))
                 top_level_packages = {
                     name.split("/", 1)[0]
                     for name in names
@@ -192,7 +281,7 @@ print(json.dumps({
                 outside,
             )
 
-    def test_sdist_contains_core_without_application_or_native_sources(self):
+    def test_sdist_contains_complete_native_build_inputs_and_installs(self):
         with tempfile.TemporaryDirectory(prefix="cheby-sdist-test-") as tmp:
             temporary_root = Path(tmp)
             project = temporary_root / "project"
@@ -223,18 +312,20 @@ print(json.dumps({
             for suffix in (
                 "/pyproject.toml",
                 "/README.md",
+                "/CMakeLists.txt",
                 "/cheby_tools/__init__.py",
-                "/cheby_tools/field.py",
-                "/cheby_tools/spectral.py",
-                "/cheby_tools/tecio.py",
+                "/native/tecio/CMakeLists.txt",
+                "/native/tecio/tecio.cpp",
+                "/external/boost/boost/version.hpp",
+                "/external/tecio/teciosrc/CMakeLists.txt",
+                "/external/pybind11/CMakeLists.txt",
                 "/examples/field_quickstart.py",
                 "/examples/write_plt.py",
             ):
                 self.assertTrue(any(name.endswith(suffix) for name in names), suffix)
             for fragment in (
                 "/tests/",
-                "/native/",
-                "/external/",
+                "/docs/",
                 "/stats/",
                 "/discr/",
                 "/spec_forge/",

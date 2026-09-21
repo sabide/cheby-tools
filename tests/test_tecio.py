@@ -146,7 +146,10 @@ class TecIOAdapterTests(unittest.TestCase):
         with mock.patch.object(tecio, "_backend", None), mock.patch.object(
             tecio, "_backend_import_error", load_error
         ):
-            with self.assertRaisesRegex(ImportError, r"CMake.*TecIO") as caught:
+            with self.assertRaisesRegex(
+                ImportError,
+                r"TecIO backend is not installed.*pip install -e",
+            ) as caught:
                 tecio.write_plt("field.plt", field)
 
         self.assertIs(caught.exception.__cause__, load_error)
