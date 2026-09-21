@@ -1,17 +1,17 @@
 import unittest
-import warnings
 
 import numpy as np
 
-import spec_forge
-from spec_forge import SpectralDiscretization, SpectralInterpolate
+import cheby_tools
+from cheby_tools import SpectralDiscretization
+from cheby_tools.spectral import SpectralInterpolate
 
 
 class PublicApiTests(unittest.TestCase):
-    def test_public_api_is_intentional(self):
-        self.assertEqual(spec_forge.__all__, ["SpectralDiscretization", "SpectralInterpolate"])
-        self.assertFalse(hasattr(spec_forge, "FourierInterpBetween1D_old"))
-        self.assertFalse(hasattr(spec_forge, "np"))
+    def test_public_api_exports_only_supported_symbols(self):
+        self.assertEqual(cheby_tools.__all__, ["SpectralDiscretization"])
+        self.assertFalse(hasattr(cheby_tools, "SpectralInterpolate"))
+        self.assertFalse(hasattr(cheby_tools, "np"))
 
 
 class SpectralDiscretizationTests(unittest.TestCase):
@@ -63,21 +63,6 @@ class SpectralDiscretizationTests(unittest.TestCase):
         Xf, Yf = fine.meshgrid()
         expected = np.cos(3.0 * Xf) * (1.0 + Yf + Yf**3)
         np.testing.assert_allclose(SpectralInterpolate(coarse, fine) @ field, expected, atol=2e-12)
-
-
-class DiscrCompatibilityTests(unittest.TestCase):
-    def test_discr_facade_delegates_to_spec_forge(self):
-        from discr import discr_2d
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            ops = discr_2d([-1.0, -2.0], [2.0, 3.0], [32, 35])
-        X, Y = ops.grid()
-        field = np.sin(X) * np.cos(Y)
-        np.testing.assert_allclose(ops.dx(field), np.cos(X) * np.cos(Y), atol=2e-11)
-        np.testing.assert_allclose(ops.dy(field), -np.sin(X) * np.sin(Y), atol=2e-11)
-        np.testing.assert_allclose(ops.interpolate(field, ops._x_phys_, ops._y_phys_), field, atol=2e-12)
-
 
 if __name__ == "__main__":
     unittest.main()

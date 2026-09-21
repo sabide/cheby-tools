@@ -2,7 +2,8 @@ import unittest
 
 import numpy as np
 
-from spec_forge import SpectralDiscretization, SpectralInterpolate
+from cheby_tools import SpectralDiscretization
+from cheby_tools.spectral import SpectralInterpolate
 
 
 class FourierResamplingTests(unittest.TestCase):

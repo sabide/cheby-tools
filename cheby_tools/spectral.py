@@ -275,7 +275,6 @@ class SpectralDiscretization:
             self.W.append(W)
 
         self._build_axis_operators()
-        self._build_aliases()
 
     # --------------------------------------------------------
     # Build operator objects
@@ -304,41 +303,6 @@ class SpectralDiscretization:
             self.diff_ops.append(d_op)
             self.expand_ops.append(e_op)
             self.interp_ops.append(i_op)
-
-    def _build_aliases(self):
-        self.dx = self.diff_ops[0]
-        self.Ex = self.expand_ops[0]
-        self.Ix = self.interp_ops[0]
-        self.Wx = self.W[0]
-
-        if self.dim >= 2:
-            self.dy = self.diff_ops[1]
-            self.Ey = self.expand_ops[1]
-            self.Iy = self.interp_ops[1]
-            self.Wy = self.W[1]
-
-        if self.dim >= 3:
-            self.dz = self.diff_ops[2]
-            self.Ez = self.expand_ops[2]
-            self.Iz = self.interp_ops[2]
-            self.Wz = self.W[2]
-
-        self._x_phys_ = self.nodes[0]
-        self._x_min_ = self.xmin[0]
-        self._x_max_ = self.xmax[0]
-        self._nx_ = self.n[0]
-
-        if self.dim >= 2:
-            self._y_phys_ = self.nodes[1]
-            self._y_min_ = self.xmin[1]
-            self._y_max_ = self.xmax[1]
-            self._ny_ = self.n[1]
-
-        if self.dim >= 3:
-            self._z_phys_ = self.nodes[2]
-            self._z_min_ = self.xmin[2]
-            self._z_max_ = self.xmax[2]
-            self._nz_ = self.n[2]
 
     # --------------------------------------------------------
     # Nodes and affine maps
@@ -750,17 +714,17 @@ class SpectralDiscretization:
     # Convenient aliases
     # --------------------------------------------------------
     def ddx(self, phi):
-        return self.dx @ phi
+        return self.diff(phi, axis=0)
 
     def ddy(self, phi):
         if self.dim < 2:
             raise ValueError("No y-axis in 1D.")
-        return self.dy @ phi
+        return self.diff(phi, axis=1)
 
     def ddz(self, phi):
         if self.dim < 3:
             raise ValueError("No z-axis in dimension < 3.")
-        return self.dz @ phi
+        return self.diff(phi, axis=2)
 
     def make_interpolator(self, ops_dst):
         return SpectralInterpolate(self, ops_dst)
