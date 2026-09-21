@@ -57,11 +57,23 @@ def write_plt(path, fields):
     grid = fields[0].discretization
     coordinate_names = ["x", "y", "z"][: grid.dim]
     names = [field.name for field in fields]
-    invalid_names = [name for name in names if "\0" in name or "\n" in name]
-    if invalid_names:
-        raise ValueError(
-            "TecIO field names must not contain NUL or newline characters."
-        )
+    for field in fields:
+        if "\0" in field.name or "\n" in field.name:
+            raise ValueError(
+                f"TecIO field name {field.name!r} must not contain NUL or "
+                "newline characters."
+            )
+        try:
+            encoded_name = field.name.encode("utf-8")
+        except UnicodeEncodeError as exc:
+            raise ValueError(
+                f"TecIO field name {field.name!r} is not valid UTF-8."
+            ) from exc
+        if len(encoded_name) > 128:
+            raise ValueError(
+                f"TecIO field name {field.name!r} exceeds 128 UTF-8 bytes "
+                f"({len(encoded_name)} bytes)."
+            )
     if len(set(names)) != len(names):
         raise ValueError("Field names must be unique.")
     collisions = set(names).intersection(coordinate_names)

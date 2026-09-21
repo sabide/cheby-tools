@@ -24,6 +24,20 @@ void check_dimension(py::ssize_t size) {
     }
 }
 
+std::string parent_directory(const std::string& filename) {
+    const std::size_t separator = filename.find_last_of("/\\");
+    if (separator == std::string::npos) {
+        return ".";
+    }
+    if (separator == 0) {
+        return filename.substr(0, 1);
+    }
+    if (separator == 2 && filename.size() > 2 && filename[1] == ':') {
+        return filename.substr(0, 3);
+    }
+    return filename.substr(0, separator);
+}
+
 void write_plt(const std::string& filename,
                const std::vector<std::string>& names,
                const std::vector<Array>& arrays) {
@@ -72,6 +86,11 @@ void write_plt(const std::string& filename,
             throw std::invalid_argument(
                 "variable names must not contain NUL or newline characters");
         }
+        if (names[index].size() > 128) {
+            throw std::invalid_argument(
+                "variable name at index " + std::to_string(index) +
+                " exceeds TecIO's 128-byte limit");
+        }
         if (index != 0) {
             // TecIO chooses newline as the list delimiter when present.  It
             // therefore preserves spaces and commas inside variable names.
@@ -84,16 +103,18 @@ void write_plt(const std::string& filename,
     INTEGER4 file_type = 0;
     INTEGER4 debug = 0;
     INTEGER4 is_double = 1;
+    const std::string scratch_directory = parent_directory(filename);
     if (TECINI142(
             "cheby-tools",
             variables.c_str(),
             filename.c_str(),
-            ".",
+            scratch_directory.c_str(),
             &file_format,
             &file_type,
             &debug,
             &is_double) != 0) {
-        throw std::runtime_error("TECINI142 failed");
+        throw std::runtime_error(
+            "TECINI142 failed for output '" + filename + "'");
     }
 
     try {
@@ -134,13 +155,16 @@ void write_plt(const std::string& filename,
                 nullptr,
                 nullptr,
                 &share_connectivity) != 0) {
-            throw std::runtime_error("TECZNE142 failed");
+            throw std::runtime_error(
+                "TECZNE142 failed for output '" + filename + "'");
         }
 
         INTEGER4 count = static_cast<INTEGER4>(point_count);
-        for (const auto& buffer : buffers) {
-            if (TECDAT142(&count, buffer.ptr, &is_double) != 0) {
-                throw std::runtime_error("TECDAT142 failed");
+        for (std::size_t index = 0; index < buffers.size(); ++index) {
+            if (TECDAT142(&count, buffers[index].ptr, &is_double) != 0) {
+                throw std::runtime_error(
+                    "TECDAT142 failed for variable '" + names[index] +
+                    "' in output '" + filename + "'");
             }
         }
     } catch (...) {
@@ -149,7 +173,8 @@ void write_plt(const std::string& filename,
     }
 
     if (TECEND142() != 0) {
-        throw std::runtime_error("TECEND142 failed");
+        throw std::runtime_error(
+            "TECEND142 failed for output '" + filename + "'");
     }
 }
 

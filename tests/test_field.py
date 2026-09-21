@@ -52,6 +52,9 @@ class FieldTests(unittest.TestCase):
             np.full(shape, "invalid"),
             np.full(shape, object(), dtype=object),
             np.ones(shape, dtype=bool),
+            np.full(shape, np.datetime64("2026-01-01")),
+            np.full(shape, np.timedelta64(1, "D")),
+            np.zeros(shape, dtype=[("value", "f8")]),
         )
 
         for values in invalid_values:

@@ -63,10 +63,26 @@ class TecIOAdapterTests(unittest.TestCase):
 
         self.assertEqual(backend.calls[0][1], ["x", "y", "velocity magnitude"])
 
+        for name in ("a" * 128, "é" * 64):
+            with self.subTest(accepted_name=name), mock.patch.object(
+                tecio, "_backend", backend
+            ):
+                tecio.write_plt(
+                    "field.plt", Field(self.x, self.grid, name)
+                )
+
         for name in ("line\nbreak", "null\0byte"):
             with self.subTest(name=name), mock.patch.object(
                 tecio, "_backend", backend
             ), self.assertRaisesRegex(ValueError, "TecIO"):
+                tecio.write_plt(
+                    "field.plt", Field(self.x, self.grid, name)
+                )
+
+        for name in ("a" * 129, "é" * 65):
+            with self.subTest(rejected_name=name), mock.patch.object(
+                tecio, "_backend", backend
+            ), self.assertRaisesRegex(ValueError, "128 UTF-8 bytes"):
                 tecio.write_plt(
                     "field.plt", Field(self.x, self.grid, name)
                 )
