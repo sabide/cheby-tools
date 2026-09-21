@@ -8,31 +8,54 @@ dimensions. Son API publique principale est volontairement limitée à :
 from cheby_tools import Field, SpectralDiscretization
 ```
 
-NumPy est la seule dépendance obligatoire. L’écriture Tecplot est une option
-native séparée.
+NumPy est la dépendance Python d’exécution. Le backend natif TecIO est compilé
+et installé par défaut.
 
-## Installation Python
+## Installation
 
-Python 3.11 ou plus récent est requis.
+Les plateformes prises en charge sont Linux, dont ADASTRA, et macOS. Il faut
+Python 3.11 ou plus récent, CMake 3.18 ou plus récent, un compilateur C++ et un
+accès à l’index ou au cache `pip` contenant `scikit-build-core`.
+
+Le clonage récursif initialise le sous-module pybind11. TecIO et les en-têtes
+Boost sont déjà fournis dans le dépôt : CMake ne télécharge aucune dépendance.
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install .
+cd <parent-directory>
+git clone --recurse-submodules -b update \
+  git@github.com:sabide/cheby-tools.git cheby-tools-update
+python3 -m venv post-processing/.venv
+source post-processing/.venv/bin/activate
+python -m pip install -e ./cheby-tools-update
 ```
 
-Pour développer et construire les archives :
+La dernière commande installe `cheby-tools` et `_tecio` dans le venv actif du
+projet de post-traitement. Les modifications Python sont visibles
+immédiatement. Après une modification C++ ou CMake, relancer la même commande
+recompile `_tecio`.
+
+Pour installer uniquement le cœur Python :
 
 ```bash
-python -m pip install '.[dev]'
+python -m pip install -e ./cheby-tools-update \
+  -Ccmake.define.CHEBY_INSTALL_TECIO=OFF
+```
+
+`Field` et `SpectralDiscretization` restent alors disponibles. Un appel à
+`write_plt` lève une `ImportError` qui indique comment réinstaller le backend.
+
+Pour développer le paquet et construire ses archives depuis le dépôt :
+
+```bash
+cd cheby-tools-update
+python -m pip install -e '.[dev]'
 python -m unittest discover -s tests -v
 python -m build
 python -m twine check dist/*
 ```
 
-La wheel contient uniquement le paquet Python `cheby_tools`. L’extension
-TecIO et ses dépendances C++ ne sont pas embarquées dans cette wheel.
+La wheel produite est native à la plateforme et contient le paquet Python
+`cheby_tools` ainsi que son extension privée `_tecio`.
 
 ## Grilles et convention de stockage
 
@@ -106,55 +129,50 @@ write_plt("fields.plt", [u, temperature])
 
 Le même code se trouve dans `examples/write_plt.py`.
 
-### Construction de l’extension TecIO
-
-Initialiser d’abord les sous-modules, puis installer le cœur Python et
-l’extension dans le même environnement :
+L’installation principale compile déjà l’extension TecIO. Après activation du
+venv, l’exemple peut être lancé depuis le dépôt :
 
 ```bash
-git submodule update --init --recursive
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install .
-
-export CHEBY_PYTHON_ENV="$PWD/.venv"
-export CHEBY_BOOST_INCLUDE_DIR="$PWD/external/boost"
-./run_cmake.sh
-python examples/write_plt.py
+python cheby-tools-update/examples/write_plt.py
 ```
-
-`run_cmake.sh` utilise `build/` par défaut. Un autre répertoire peut être
-choisi avec `CHEBY_BUILD_DIR`. Pour lier une installation TecIO existante au
-lieu du sous-module fourni, configurer CMake avec
-`CHEBY_USE_BUNDLED_TECIO=OFF`, `CHEBY_TECIO_INCLUDE_DIR` et
-`CHEBY_TECIO_LIBRARY`.
 
 ## Installation sur ADASTRA
 
-Le chemin de l’environnement Python appartient à l’utilisateur et doit être
-fourni explicitement. Par exemple :
+Charger d’abord la pile de compilation, puis créer le venv du projet de
+post-traitement et lancer la même installation :
 
 ```bash
 module purge
+module load cpe/24.07
+module load PrgEnv-gnu/8.5.0
+module load cmake/4.0.3
 module load python/3.12.1
-export CHEBY_PYTHON_ENV="$WORK/venvs/cheby-tools"
-python -m venv "$CHEBY_PYTHON_ENV"
-
-source env.sh
-python -m pip install .
-python examples/field_quickstart.py
+python -m venv post-processing/.venv
+source post-processing/.venv/bin/activate
+python -m pip install -e ./cheby-tools-update
 ```
 
-Pour ajouter TecIO, initialiser les sous-modules puis lancer le script de
-construction dans le même environnement :
+Le dépôt doit avoir été cloné avec `--recurse-submodules`. Pour corriger un
+clonage existant incomplet :
 
 ```bash
 git submodule update --init --recursive
-source env.sh
-./run_cmake.sh
-python examples/write_plt.py
 ```
 
-`env.sh` charge la pile compilateur/CMake prévue pour ADASTRA, active
-`CHEBY_PYTHON_ENV` et vérifie Python ainsi que les en-têtes Boost. Aucun
-chemin de compte utilisateur n’est codé en dur.
+### Workflow CMake direct avancé
+
+Le script historique reste disponible pour déboguer le build natif ou choisir
+un préfixe CMake manuellement. Il n’est pas nécessaire pour l’installation
+normale avec `pip`.
+
+```bash
+cd cheby-tools-update
+export CHEBY_PYTHON_ENV=<absolute-path>/post-processing/.venv
+source env.sh
+./run_cmake.sh
+```
+
+`run_cmake.sh` utilise `build/` par défaut. `CHEBY_BUILD_DIR` permet de choisir
+un autre répertoire. Pour lier une installation TecIO externe, configurer
+`CHEBY_USE_BUNDLED_TECIO=OFF`, `CHEBY_TECIO_INCLUDE_DIR` et
+`CHEBY_TECIO_LIBRARY`. Aucun chemin de compte utilisateur n’est codé en dur.
