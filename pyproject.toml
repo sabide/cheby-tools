@@ -7,6 +7,11 @@ name = "cheby-tools"
 version = "0.1.0"
 description = "Spectral post-processing tools for Chebyshev and Fourier grids"
 readme = "README.md"
+license-files = [
+    "external/boost/LICENSE_1_0.txt",
+    "external/pybind11/LICENSE",
+    "external/tecio/teciosrc/tecio_license_agreement.txt",
+]
 requires-python = ">=3.11"
 dependencies = [
     "numpy>=1.23",

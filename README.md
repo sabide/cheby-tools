@@ -133,7 +133,7 @@ L’installation principale compile déjà l’extension TecIO. Après activatio
 venv, l’exemple peut être lancé depuis le dépôt :
 
 ```bash
-python cheby-tools-update/examples/write_plt.py
+python examples/write_plt.py
 ```
 
 ## Installation sur ADASTRA

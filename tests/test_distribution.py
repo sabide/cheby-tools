@@ -1,5 +1,4 @@
 import json
-import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -143,26 +142,26 @@ class DistributionTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout)
         return result.stdout
 
-    def smoke_installed_package(self, installed, working_directory):
-        environment = os.environ.copy()
-        environment["PYTHONPATH"] = str(installed)
-        environment["CHEBY_TEST_INSTALL"] = str(installed)
+    def create_virtual_environment(self, root):
+        environment_root = root / ".venv"
+        self.run_command(
+            [sys.executable, "-m", "venv", str(environment_root)],
+            cwd=root,
+        )
+        return environment_root, environment_root / "bin" / "python"
+
+    def smoke_installed_package(
+        self, python, environment_root, working_directory
+    ):
         smoke_code = """
 import importlib.util
 import json
 from importlib.metadata import version
 import numpy as np
-import os
-import sys
-
-installed = os.environ["CHEBY_TEST_INSTALL"]
-sys.path[:] = [
-    installed,
-    *(path for path in sys.path if "site-packages" not in path),
-]
 
 from cheby_tools import Field, SpectralDiscretization
 from cheby_tools import _tecio
+import cheby_tools
 
 grid = SpectralDiscretization([0.0], [2.0 * np.pi], [24], ["fourier"])
 field = Field(np.sin(3.0 * grid.nodes[0]), grid, "u")
@@ -175,31 +174,39 @@ removed_modules = {
 }
 print(json.dumps({
     "error": error,
+    "package": cheby_tools.__file__,
     "removed_modules": removed_modules,
     "tecio_backend": _tecio.__file__,
     "version": version("cheby-tools"),
 }))
 """
         output = self.run_command(
-            [sys.executable, "-c", smoke_code],
+            [str(python), "-c", smoke_code],
             cwd=working_directory,
-            env=environment,
         )
         result = json.loads(output.strip().splitlines()[-1])
         self.assertLess(result["error"], 2.0e-12)
         self.assertTrue(all(result["removed_modules"].values()))
         self.assertIn("_tecio", result["tecio_backend"])
+        installation_root = Path(environment_root).resolve()
+        self.assertTrue(
+            Path(result["package"]).resolve().is_relative_to(installation_root),
+            result,
+        )
+        self.assertTrue(
+            Path(result["tecio_backend"]).resolve().is_relative_to(
+                installation_root
+            ),
+            result,
+        )
         self.assertEqual(result["version"], "0.1.0")
 
-    def run_quickstart(self, example, installed, working_directory):
+    def run_quickstart(self, example, python, working_directory):
         copied_example = working_directory / "field_quickstart.py"
         shutil.copy2(example, copied_example)
-        environment = os.environ.copy()
-        environment["PYTHONPATH"] = str(installed)
         output = self.run_command(
-            [sys.executable, str(copied_example)],
+            [str(python), str(copied_example)],
             cwd=working_directory,
-            env=environment,
         )
         self.assertIn("derivative max error:", output)
         self.assertIn("interpolation max error:", output)
@@ -247,6 +254,14 @@ print(json.dumps({
                     "cheby_tools/tecio.py",
                 ):
                     self.assertIn(member, names)
+                for suffix in (
+                    "/licenses/external/boost/LICENSE_1_0.txt",
+                    "/licenses/external/pybind11/LICENSE",
+                    "/licenses/external/tecio/teciosrc/tecio_license_agreement.txt",
+                ):
+                    self.assertTrue(
+                        any(name.endswith(suffix) for name in names), suffix
+                    )
                 self.assertFalse(
                     any(name.startswith("spec_forge/") for name in names)
                 )
@@ -267,26 +282,25 @@ print(json.dumps({
                 self.assertNotIn("Provides-Extra: io", metadata)
                 self.assertIn("Provides-Extra: dev", metadata)
 
-            installed = temporary_root / "installed"
+            environment_root, python = self.create_virtual_environment(
+                temporary_root
+            )
             self.run_command(
                 [
-                    sys.executable,
+                    str(python),
                     "-m",
                     "pip",
                     "install",
-                    "--no-deps",
-                    "--target",
-                    str(installed),
                     str(wheel),
                 ],
                 cwd=temporary_root,
             )
             outside = temporary_root / "outside"
             outside.mkdir()
-            self.smoke_installed_package(installed, outside)
+            self.smoke_installed_package(python, environment_root, outside)
             self.run_quickstart(
                 project / "examples" / "field_quickstart.py",
-                installed,
+                python,
                 outside,
             )
 
@@ -344,31 +358,29 @@ print(json.dumps({
             ):
                 self.assertFalse(any(fragment in name for name in names), fragment)
 
-            installed = temporary_root / "installed"
+            environment_root, python = self.create_virtual_environment(
+                temporary_root
+            )
             self.run_command(
                 [
-                    sys.executable,
+                    str(python),
                     "-m",
                     "pip",
                     "install",
-                    "--no-deps",
-                    "--no-build-isolation",
-                    "--target",
-                    str(installed),
                     str(archives[0]),
                 ],
                 cwd=temporary_root,
             )
             outside = temporary_root / "outside"
             outside.mkdir()
-            self.smoke_installed_package(installed, outside)
+            self.smoke_installed_package(python, environment_root, outside)
             extracted = temporary_root / "extracted"
             with tarfile.open(archives[0], "r:gz") as archive:
                 archive.extractall(extracted, filter="data")
             source_root = next(extracted.glob("cheby_tools-*"))
             self.run_quickstart(
                 source_root / "examples" / "field_quickstart.py",
-                installed,
+                python,
                 outside,
             )
 
