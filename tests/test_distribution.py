@@ -58,10 +58,21 @@ class DistributionTests(unittest.TestCase):
     def smoke_installed_package(self, installed, working_directory):
         environment = os.environ.copy()
         environment["PYTHONPATH"] = str(installed)
+        environment["CHEBY_TEST_INSTALL"] = str(installed)
         smoke_code = """
+import importlib.util
 import json
 from importlib.metadata import version
 import numpy as np
+import os
+import sys
+
+installed = os.environ["CHEBY_TEST_INSTALL"]
+sys.path[:] = [
+    installed,
+    *(path for path in sys.path if "site-packages" not in path),
+]
+
 from cheby_tools import Field, SpectralDiscretization
 
 grid = SpectralDiscretization([0.0], [2.0 * np.pi], [24], ["fourier"])
@@ -69,7 +80,15 @@ field = Field(np.sin(3.0 * grid.nodes[0]), grid, "u")
 error = float(np.max(np.abs(
     field.derivative(0).values - 3.0 * np.cos(3.0 * grid.nodes[0])
 )))
-print(json.dumps({"error": error, "version": version("cheby-tools")}))
+removed_modules = {
+    name: importlib.util.find_spec(name) is None
+    for name in ("stats", "discr", "spec_forge")
+}
+print(json.dumps({
+    "error": error,
+    "removed_modules": removed_modules,
+    "version": version("cheby-tools"),
+}))
 """
         output = self.run_command(
             [sys.executable, "-c", smoke_code],
@@ -78,7 +97,21 @@ print(json.dumps({"error": error, "version": version("cheby-tools")}))
         )
         result = json.loads(output.strip().splitlines()[-1])
         self.assertLess(result["error"], 2.0e-12)
+        self.assertTrue(all(result["removed_modules"].values()))
         self.assertEqual(result["version"], "0.1.0")
+
+    def run_quickstart(self, example, installed, working_directory):
+        copied_example = working_directory / "field_quickstart.py"
+        shutil.copy2(example, copied_example)
+        environment = os.environ.copy()
+        environment["PYTHONPATH"] = str(installed)
+        output = self.run_command(
+            [sys.executable, str(copied_example)],
+            cwd=working_directory,
+            env=environment,
+        )
+        self.assertIn("derivative max error:", output)
+        self.assertIn("interpolation max error:", output)
 
     def test_wheel_contains_only_cheby_tools_and_runs_when_installed(self):
         with tempfile.TemporaryDirectory(prefix="cheby-wheel-test-") as tmp:
@@ -153,6 +186,11 @@ print(json.dumps({"error": error, "version": version("cheby-tools")}))
             outside = temporary_root / "outside"
             outside.mkdir()
             self.smoke_installed_package(installed, outside)
+            self.run_quickstart(
+                project / "examples" / "field_quickstart.py",
+                installed,
+                outside,
+            )
 
     def test_sdist_contains_core_without_application_or_native_sources(self):
         with tempfile.TemporaryDirectory(prefix="cheby-sdist-test-") as tmp:
@@ -189,6 +227,8 @@ print(json.dumps({"error": error, "version": version("cheby-tools")}))
                 "/cheby_tools/field.py",
                 "/cheby_tools/spectral.py",
                 "/cheby_tools/tecio.py",
+                "/examples/field_quickstart.py",
+                "/examples/write_plt.py",
             ):
                 self.assertTrue(any(name.endswith(suffix) for name in names), suffix)
             for fragment in (
@@ -222,6 +262,15 @@ print(json.dumps({"error": error, "version": version("cheby-tools")}))
             outside = temporary_root / "outside"
             outside.mkdir()
             self.smoke_installed_package(installed, outside)
+            extracted = temporary_root / "extracted"
+            with tarfile.open(archives[0], "r:gz") as archive:
+                archive.extractall(extracted, filter="data")
+            source_root = next(extracted.glob("cheby_tools-*"))
+            self.run_quickstart(
+                source_root / "examples" / "field_quickstart.py",
+                installed,
+                outside,
+            )
 
 
 class RepositoryCleanupTests(unittest.TestCase):
@@ -246,5 +295,19 @@ class RepositoryCleanupTests(unittest.TestCase):
         for pattern in ("**/*.lay", "**/*.eps", "**/*.png"):
             with self.subTest(pattern=pattern):
                 self.assertEqual(list((REPOSITORY_ROOT / "examples").glob(pattern)), [])
+
+    def test_legacy_implementation_names_are_absent(self):
+        spectral_source = (REPOSITORY_ROOT / "cheby_tools/spectral.py").read_text(
+            encoding="utf-8"
+        )
+        cmake_source = (REPOSITORY_ROOT / "CMakeLists.txt").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertNotIn("_FourierInterpBetween1DLegacy", spectral_source)
+        self.assertNotIn("tecio_wrapper", cmake_source)
+        self.assertNotIn("CHEBY_INSTALL_TECIO_WRAPPER", cmake_source)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,24 +1,19 @@
 # cheby-tools
 
-Outils Python de post-traitement spectral sur grilles de Chebyshev et de
-Fourier. Le cœur Python est installable indépendamment de TecIO et d'un
-compilateur C++.
-
-L'API spectrale prise en charge est :
+`cheby-tools` fournit un petit cœur Python pour manipuler des champs nodaux
+sur des grilles tensorielles de Fourier et de Chebyshev en une, deux ou trois
+dimensions. Son API publique principale est volontairement limitée à :
 
 ```python
-from spec_forge import SpectralDiscretization, SpectralInterpolate
+from cheby_tools import Field, SpectralDiscretization
 ```
 
-Le paquet historique `discr` reste disponible comme façade de compatibilité,
-mais les nouveaux scripts doivent utiliser `spec_forge`.
+NumPy est la seule dépendance obligatoire. L’écriture Tecplot est une option
+native séparée.
 
-## Installation du cœur Python
+## Installation Python
 
-Prérequis : Python 3.11 ou une version ultérieure, avec `pip`. Les versions
-3.11 et 3.12 sont qualifiées par les tests actuels.
-
-### Linux et macOS
+Python 3.11 ou plus récent est requis.
 
 ```bash
 python3 -m venv .venv
@@ -27,154 +22,139 @@ python -m pip install --upgrade pip
 python -m pip install .
 ```
 
-### Windows PowerShell
-
-```powershell
-py -3.12 -m venv .venv
-.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install .
-```
-
-NumPy est la seule dépendance obligatoire. Les lecteurs HDF5 de `stats`
-nécessitent l'extra `io` :
-
-```bash
-python -m pip install '.[io]'
-```
-
-L'extra `dev` fournit les outils de construction et de validation des
-archives :
+Pour développer et construire les archives :
 
 ```bash
 python -m pip install '.[dev]'
-```
-
-## Vérification rapide
-
-Depuis la racine des sources :
-
-```bash
-python -m pip install '.[dev]'
-python examples/spectral_quickstart.py
 python -m unittest discover -s tests -v
-```
-
-L'exemple construit deux grilles périodiques, dérive un champ analytique et
-l'interpole sur une grille plus fine. Il termine avec un code non nul si
-l'erreur dépasse la tolérance numérique.
-
-## Construction d'une wheel et d'une sdist
-
-```bash
-python -m pip install '.[dev]'
 python -m build
 python -m twine check dist/*
 ```
 
-Les deux archives sont créées dans `dist/` :
+La wheel contient uniquement le paquet Python `cheby_tools`. L’extension
+TecIO et ses dépendances C++ ne sont pas embarquées dans cette wheel.
 
-```text
-cheby_tools-0.1.0-py3-none-any.whl
-cheby_tools-0.1.0.tar.gz
+## Grilles et convention de stockage
+
+Une discrétisation associe à chaque axe ses bornes, son nombre de nœuds et sa
+base. La base `fourier` représente un axe périodique sur l’intervalle
+semi-ouvert correspondant ; la base `chebyshev` inclut les deux extrémités.
+
+```python
+import numpy as np
+from cheby_tools import Field, SpectralDiscretization
+
+grid = SpectralDiscretization(
+    xmin=[0.0, -1.0],
+    xmax=[2.0 * np.pi, 1.0],
+    n=[64, 33],
+    bases=["fourier", "chebyshev"],
+)
+x, y = grid.meshgrid()
+temperature = Field(np.cos(x) + y, grid, "temperature")
 ```
 
-La wheel contient uniquement `spec_forge`, `discr` et `stats`. TecIO, Boost
-et les autres sources tierces ne font pas partie de cette distribution
-Python.
+Pour une grille de dimensions `(nx, ny, nz)`, les valeurs d’un `Field` ont
+exactement la forme `(nx, ny, nz)`. L’axe NumPy 0 correspond donc au premier
+axe physique, l’axe 1 au deuxième, etc. `grid.meshgrid()` applique la même
+convention avec `indexing="ij"`.
 
-## Installation sur ADASTRA
+## Dérivation et interpolation
 
-Créer l'environnement dans un emplacement de travail persistant choisi par
-l'utilisateur ; ne pas coder en dur le chemin d'un autre compte :
+Les opérations créent un nouveau `Field` et ne modifient pas les valeurs du
+champ d’origine :
+
+```python
+dtemperature_dx = temperature.derivative(axis=0)
+d2temperature_dy2 = temperature.derivative(axis=1, order=2)
+
+fine = SpectralDiscretization(
+    [0.0, -1.0],
+    [2.0 * np.pi, 1.0],
+    [128, 65],
+    ["fourier", "chebyshev"],
+)
+temperature_fine = temperature.interpolate(fine)
+```
+
+Un exemple analytique exécutable vérifie les deux opérations :
 
 ```bash
-python3 -m venv /chemin/vers/venvs/cheby-tools
-source /chemin/vers/venvs/cheby-tools/bin/activate
-python -m pip install --upgrade pip
-python -m pip install .
-python examples/spectral_quickstart.py
+python examples/field_quickstart.py
 ```
 
-Pour une installation hors ligne, préparer un répertoire de wheels sur une
-machine ayant accès à l'index Python :
+## Sortie Tecplot `.plt`
 
-```bash
-python -m pip wheel --wheel-dir wheelhouse .
+L’adaptateur optionnel écrit un ou plusieurs champs réels définis sur la même
+grille dans un fichier Tecplot binaire classique `.plt`. Il ne produit jamais
+de fichier `.szplt`.
+
+```python
+import numpy as np
+from cheby_tools import Field, SpectralDiscretization
+from cheby_tools.tecio import write_plt
+
+grid = SpectralDiscretization(
+    [0.0, -1.0], [2.0 * np.pi, 1.0], [64, 33],
+    ["fourier", "chebyshev"],
+)
+x, y = grid.meshgrid()
+u = Field(np.sin(x) * (1.0 - y**2), grid, "u")
+temperature = Field(np.cos(2.0 * x) + y, grid, "temperature")
+write_plt("fields.plt", [u, temperature])
 ```
 
-Pour préparer également h5py et ses dépendances :
+Le même code se trouve dans `examples/write_plt.py`.
 
-```bash
-python -m pip wheel --wheel-dir wheelhouse '.[io]'
-```
+### Construction de l’extension TecIO
 
-Après transfert de `wheelhouse/` sur ADASTRA :
-
-```bash
-python -m pip install --no-index --find-links wheelhouse cheby-tools
-# Avec les lecteurs HDF5 :
-python -m pip install --no-index --find-links wheelhouse 'cheby-tools[io]'
-```
-
-La wheel de `cheby-tools` est pure Python, mais NumPy et h5py contiennent des
-composants natifs. Les wheels déposées dans `wheelhouse/` doivent donc être
-compatibles avec la version de Python et la plate-forme cibles. Pour h5py
-parallèle/MPI, conserver un environnement HPC séparé et utiliser la pile
-logicielle qualifiée du site.
-
-## TecIO et installation CMake optionnelle
-
-Le wrapper TecIO n'est pas construit par `pip`. Il conserve son installation
-CMake séparée :
+Initialiser d’abord les sous-modules, puis installer le cœur Python et
+l’extension dans le même environnement :
 
 ```bash
 git submodule update --init --recursive
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build -j
-cmake --install build --prefix build/install
-export PYTHONPATH="$PWD/build/install/lib/python${PYTHONPATH:+:$PYTHONPATH}"
-python -c "import tecio_wrapper; print(tecio_wrapper.__file__)"
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install .
+
+export CHEBY_PYTHON_ENV="$PWD/.venv"
+export CHEBY_BOOST_INCLUDE_DIR="$PWD/external/boost"
+./run_cmake.sh
+python examples/write_plt.py
 ```
 
-Pour désactiver TecIO et utiliser seulement l'installation CMake historique
-des modules Python :
+`run_cmake.sh` utilise `build/` par défaut. Un autre répertoire peut être
+choisi avec `CHEBY_BUILD_DIR`. Pour lier une installation TecIO existante au
+lieu du sous-module fourni, configurer CMake avec
+`CHEBY_USE_BUNDLED_TECIO=OFF`, `CHEBY_TECIO_INCLUDE_DIR` et
+`CHEBY_TECIO_LIBRARY`.
+
+## Installation sur ADASTRA
+
+Le chemin de l’environnement Python appartient à l’utilisateur et doit être
+fourni explicitement. Par exemple :
 
 ```bash
-cmake -S . -B build \
-  -DCHEBY_INSTALL_TECIO_WRAPPER=OFF \
-  -DCHEBY_INSTALL_POSTPROCESSING_TOOLS=ON
-cmake --install build --prefix build/install
+module purge
+module load python/3.12.1
+export CHEBY_PYTHON_ENV="$WORK/venvs/cheby-tools"
+python -m venv "$CHEBY_PYTHON_ENV"
+
+source env.sh
+python -m pip install .
+python examples/field_quickstart.py
 ```
 
-Pour ne construire que TecIO :
+Pour ajouter TecIO, initialiser les sous-modules puis lancer le script de
+construction dans le même environnement :
 
 ```bash
-cmake -S . -B build \
-  -DCHEBY_INSTALL_POSTPROCESSING_TOOLS=OFF
-cmake --build build -j
-cmake --install build --prefix build/install
+git submodule update --init --recursive
+source env.sh
+./run_cmake.sh
+python examples/write_plt.py
 ```
 
-Pour utiliser une bibliothèque TecIO déjà construite :
-
-```bash
-cmake -S . -B build \
-  -DCHEBY_USE_BUNDLED_TECIO=OFF \
-  -DCHEBY_TECIO_INCLUDE_DIR=/chemin/vers/teciosrc \
-  -DCHEBY_TECIO_LIBRARY=/chemin/vers/libtecio.a
-cmake --build build -j
-```
-
-Les en-têtes Boost 1.88 vendus dans `external/boost` sont sélectionnés par
-défaut. Une autre installation peut être imposée avec :
-
-```bash
-cmake -S . -B build \
-  -DCHEBY_BOOST_INCLUDE_DIR=/chemin/vers/boost-root
-```
-
-Ce chemin doit contenir `boost/version.hpp`.
-
-Le fichier `cfg_adastra.sh` conserve les options CMake du profil HPC existant.
-Le cœur spectral installé avec `pip` ne dépend pas de ce profil.
+`env.sh` charge la pile compilateur/CMake prévue pour ADASTRA, active
+`CHEBY_PYTHON_ENV` et vérifie Python ainsi que les en-têtes Boost. Aucun
+chemin de compte utilisateur n’est codé en dur.

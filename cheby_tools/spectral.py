@@ -933,65 +933,6 @@ class FourierInterpBetween1D(InterpBetween1D):
 
         return np.real_if_close(out) if self.real_output_if_close else out
 
-    
-#------------
-class _FourierInterpBetween1DLegacy(InterpBetween1D):
-    """
-    Uniform periodic grid -> uniform periodic grid interpolation on [a,b)
-    using FFT + zero-padding / truncation.
-
-    Input  : nodal values on Nsrc Fourier grid
-    Output : nodal values on Ndst Fourier grid
-    """
-    def __init__(self, Nsrc, Ndst, a, b, axis=0, name="T", real_output_if_close=True):
-        super().__init__(axis=axis, basis="fourier", name=name)
-        self.Nsrc = int(Nsrc)
-        self.Ndst = int(Ndst)
-        self.a = float(a)
-        self.b = float(b)
-        self.real_output_if_close = bool(real_output_if_close)
-
-        if self.Nsrc < 1 or self.Ndst < 1:
-            raise ValueError("Fourier interpolation requires Nsrc >= 1 and Ndst >= 1.")
-
-    def apply(self, arr):
-        arr = np.asarray(arr)
-
-        if arr.ndim < 1 or arr.ndim > 3:
-            raise ValueError("arr must be 1D, 2D, or 3D.")
-
-        if not (0 <= self.axis < arr.ndim):
-            raise ValueError(f"axis={self.axis} incompatible with arr.ndim={arr.ndim}")
-
-        if arr.shape[self.axis] != self.Nsrc:
-            raise ValueError(
-                f"Size mismatch on axis {self.axis}: "
-                f"arr.shape[{self.axis}]={arr.shape[self.axis]} != Nsrc={self.Nsrc}"
-            )
-
-        ahat = np.fft.fft(arr, axis=self.axis) / self.Nsrc
-        ahat = np.moveaxis(ahat, self.axis, 0)
-
-        out_hat = np.zeros((self.Ndst,) + ahat.shape[1:], dtype=complex)
-
-        ncopy = min(self.Nsrc, self.Ndst)
-
-        if ncopy % 2 == 0:
-            nh = ncopy // 2 + 1
-        else:
-            nh = (ncopy + 1) // 2
-        nt = ncopy - nh
-
-        out_hat[:nh, ...] = ahat[:nh, ...]
-        if nt > 0:
-            out_hat[-nt:, ...] = ahat[-nt:, ...]
-
-        out = np.fft.ifft(self.Ndst * out_hat, axis=0)
-        out = np.moveaxis(out, 0, self.axis)
-
-        return np.real_if_close(out) if self.real_output_if_close else out
-
-
 class SpectralInterpolate:
     """
     Reusable spectral interpolation operator from ops_src grid to ops_dst grid.

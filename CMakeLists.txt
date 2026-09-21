@@ -8,7 +8,7 @@ if(NOT DEFINED Python_EXECUTABLE AND EXISTS "/opt/miniconda3/bin/python")
 endif()
 
 option(CHEBY_USE_BUNDLED_TECIO "Build TecIO from external/tecio/teciosrc." ON)
-option(CHEBY_INSTALL_TECIO_WRAPPER "Build and install the tecio_wrapper Python extension." ON)
+option(CHEBY_INSTALL_TECIO "Build and install the private TecIO Python backend." ON)
 option(CHEBY_INSTALL_PYTHON_CORE "Install the pure-Python cheby_tools package." ON)
 
 include(GNUInstallDirs)
@@ -20,13 +20,13 @@ set(CHEBY_BOOST_INCLUDE_DIR "" CACHE PATH
 set(CHEBY_TECIO_INCLUDE_DIR "" CACHE PATH "TecIO include directory when using an external TecIO build.")
 set(CHEBY_TECIO_LIBRARY "" CACHE FILEPATH "Path to libtecio.a/.so/.dylib when using an external TecIO build.")
 
-if(NOT CHEBY_INSTALL_TECIO_WRAPPER AND NOT CHEBY_INSTALL_PYTHON_CORE)
+if(NOT CHEBY_INSTALL_TECIO AND NOT CHEBY_INSTALL_PYTHON_CORE)
   message(FATAL_ERROR
-    "Nothing to install: enable CHEBY_INSTALL_TECIO_WRAPPER and/or "
+    "Nothing to install: enable CHEBY_INSTALL_TECIO and/or "
     "CHEBY_INSTALL_PYTHON_CORE.")
 endif()
 
-if(CHEBY_INSTALL_TECIO_WRAPPER)
+if(CHEBY_INSTALL_TECIO)
   if(EXISTS "${CMAKE_SOURCE_DIR}/external/pybind11/CMakeLists.txt")
     add_subdirectory(external/pybind11)
   else()
