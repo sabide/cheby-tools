@@ -1,174 +1,180 @@
-# cheby-tools-adastra
+# cheby-tools
 
-Install:
-- `tecio_wrapper`
-- `discr`
-- `stats`
-- `spec_forge`
+Outils Python de post-traitement spectral sur grilles de Chebyshev et de
+Fourier. Le cœur Python est installable indépendamment de TecIO et d'un
+compilateur C++.
 
-## 1) Clone with submodules
-
-```bash
-git clone <repo-url>
-cd cheby-tools-adastra
-git submodule update --init --recursive
-```
-
-`pybind11` is taken from the repository submodule at `external/pybind11`.
-
-## 2) Build and install
-
-```bash
-cmake -S . -B build \
-  -DCMAKE_BUILD_TYPE=Release
-cmake --build build -j
-cmake --install build --prefix build/install
-```
-
-Set Python path to the installed package:
-
-```bash
-export PYTHONPATH="$PWD/build/install/lib/python:$PYTHONPATH"
-```
-
-You can then use:
+L'API spectrale prise en charge est :
 
 ```python
-import stats, tecio_wrapper
 from spec_forge import SpectralDiscretization, SpectralInterpolate
-
-ops = SpectralDiscretization(
-    xmin=[0, 0],
-    xmax=[1, 1],
-    n=[16, 16],
-    bases=["chebyshev", "chebyshev"],
-)
 ```
 
-## 3) Useful options
+Le paquet historique `discr` reste disponible comme façade de compatibilité,
+mais les nouveaux scripts doivent utiliser `spec_forge`.
 
-Install only the post-processing tools (`stats`, `spec_forge`, plus the
-deprecated `discr` compatibility facade):
+## Installation du cœur Python
+
+Prérequis : Python 3.11 ou une version ultérieure, avec `pip`. Les versions
+3.11 et 3.12 sont qualifiées par les tests actuels.
+
+### Linux et macOS
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install .
+```
+
+### Windows PowerShell
+
+```powershell
+py -3.12 -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install .
+```
+
+NumPy est la seule dépendance obligatoire. Les lecteurs HDF5 de `stats`
+nécessitent l'extra `io` :
+
+```bash
+python -m pip install '.[io]'
+```
+
+L'extra `dev` fournit les outils de construction et de validation des
+archives :
+
+```bash
+python -m pip install '.[dev]'
+```
+
+## Vérification rapide
+
+Depuis la racine des sources :
+
+```bash
+python -m pip install '.[dev]'
+python examples/spectral_quickstart.py
+python -m unittest discover -s tests -v
+```
+
+L'exemple construit deux grilles périodiques, dérive un champ analytique et
+l'interpole sur une grille plus fine. Il termine avec un code non nul si
+l'erreur dépasse la tolérance numérique.
+
+## Construction d'une wheel et d'une sdist
+
+```bash
+python -m pip install '.[dev]'
+python -m build
+python -m twine check dist/*
+```
+
+Les deux archives sont créées dans `dist/` :
+
+```text
+cheby_tools-0.1.0-py3-none-any.whl
+cheby_tools-0.1.0.tar.gz
+```
+
+La wheel contient uniquement `spec_forge`, `discr` et `stats`. TecIO, Boost
+et les autres sources tierces ne font pas partie de cette distribution
+Python.
+
+## Installation sur ADASTRA
+
+Créer l'environnement dans un emplacement de travail persistant choisi par
+l'utilisateur ; ne pas coder en dur le chemin d'un autre compte :
+
+```bash
+python3 -m venv /chemin/vers/venvs/cheby-tools
+source /chemin/vers/venvs/cheby-tools/bin/activate
+python -m pip install --upgrade pip
+python -m pip install .
+python examples/spectral_quickstart.py
+```
+
+Pour une installation hors ligne, préparer un répertoire de wheels sur une
+machine ayant accès à l'index Python :
+
+```bash
+python -m pip wheel --wheel-dir wheelhouse .
+```
+
+Pour préparer également h5py et ses dépendances :
+
+```bash
+python -m pip wheel --wheel-dir wheelhouse '.[io]'
+```
+
+Après transfert de `wheelhouse/` sur ADASTRA :
+
+```bash
+python -m pip install --no-index --find-links wheelhouse cheby-tools
+# Avec les lecteurs HDF5 :
+python -m pip install --no-index --find-links wheelhouse 'cheby-tools[io]'
+```
+
+La wheel de `cheby-tools` est pure Python, mais NumPy et h5py contiennent des
+composants natifs. Les wheels déposées dans `wheelhouse/` doivent donc être
+compatibles avec la version de Python et la plate-forme cibles. Pour h5py
+parallèle/MPI, conserver un environnement HPC séparé et utiliser la pile
+logicielle qualifiée du site.
+
+## TecIO et installation CMake optionnelle
+
+Le wrapper TecIO n'est pas construit par `pip`. Il conserve son installation
+CMake séparée :
+
+```bash
+git submodule update --init --recursive
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+cmake --install build --prefix build/install
+export PYTHONPATH="$PWD/build/install/lib/python${PYTHONPATH:+:$PYTHONPATH}"
+python -c "import tecio_wrapper; print(tecio_wrapper.__file__)"
+```
+
+Pour désactiver TecIO et utiliser seulement l'installation CMake historique
+des modules Python :
 
 ```bash
 cmake -S . -B build \
-  -DCMAKE_BUILD_TYPE=Release \
   -DCHEBY_INSTALL_TECIO_WRAPPER=OFF \
   -DCHEBY_INSTALL_POSTPROCESSING_TOOLS=ON
 cmake --install build --prefix build/install
 ```
 
-Install only `tecio_wrapper`:
+Pour ne construire que TecIO :
 
 ```bash
 cmake -S . -B build \
-  -DCMAKE_BUILD_TYPE=Release \
   -DCHEBY_INSTALL_POSTPROCESSING_TOOLS=OFF
 cmake --build build -j
 cmake --install build --prefix build/install
 ```
 
-Use an external/prebuilt TecIO:
+Pour utiliser une bibliothèque TecIO déjà construite :
 
 ```bash
 cmake -S . -B build \
-  -DCMAKE_BUILD_TYPE=Release \
   -DCHEBY_USE_BUNDLED_TECIO=OFF \
-  -DCHEBY_TECIO_INCLUDE_DIR=/path/to/tecio/teciosrc \
-  -DCHEBY_TECIO_LIBRARY=/path/to/libtecio.a
+  -DCHEBY_TECIO_INCLUDE_DIR=/chemin/vers/teciosrc \
+  -DCHEBY_TECIO_LIBRARY=/chemin/vers/libtecio.a
 cmake --build build -j
-cmake --install build --prefix build/install
 ```
 
-## 4) Notes
-
-- Prerequisites: `cmake`, `python`, compiler toolchain, and `boost`.
-- The default build uses bundled TecIO from the repository and system Boost.
-- If Boost is installed in a non-standard location, pass its include directory explicitly:
+Les en-têtes Boost 1.88 vendus dans `external/boost` sont sélectionnés par
+défaut. Une autre installation peut être imposée avec :
 
 ```bash
 cmake -S . -B build \
-  -DCHEBY_BOOST_INCLUDE_DIR=/opt/homebrew/include
+  -DCHEBY_BOOST_INCLUDE_DIR=/chemin/vers/boost-root
 ```
 
-Only the Boost headers are required; no compiled Boost library is linked.
-`CHEBY_BOOST_INCLUDE_DIR` must point to the directory containing
-`boost/version.hpp`.
+Ce chemin doit contenir `boost/version.hpp`.
 
-With a modern system Boost, no option is needed: CMake uses `Boost::headers`
-(or `Boost::boost` on older CMake/Boost configurations).
-
-Boost 1.88 headers required by TecIO are vendored under:
-
-```text
-external/boost/boost/version.hpp
-```
-
-They are detected automatically, so the default build needs no system Boost
-installation and no Boost-related CMake option. Alternative headers can still
-be selected explicitly:
-
-```bash
-cmake -S . -B build \
-  -DCHEBY_BOOST_INCLUDE_DIR=/path/to/boost-root
-```
-
-On Adastra, as on macOS, the project deliberately uses the repository-local
-header-only copy and does not load or link a Boost library module:
-
-```bash
-source env.sh
-```
-
-## 5) Adastra notes
-
-See [`cfg_adastra.sh`](./cfg_adastra.sh) for a reproducible build script using environment variables.
-
-Typical workflow:
-
-```bash
-source cfg_adastra.sh
-cmake -S . -B build-adastra $CHEBY_ADASTRA_CMAKE_FLAGS
-cmake --build build-adastra -j
-cmake --install build-adastra --prefix build-adastra/install
-```
-
-### Project Python environment
-
-`cheby-tools` uses one Python 3.12 environment for NumPy, MPI-enabled h5py,
-mpi4py, the pure Python packages, and the compiled `tecio_wrapper` extension:
-
-```text
-/lus/work/CT2A/c1916929/SHARED/opt/post
-```
-
-Activate and validate it with:
-
-```bash
-source env.sh
-python check_python_env.py
-```
-
-Do not use `pip --user`: packages must be installed inside this environment so
-that Python, NumPy, h5py, mpi4py and the extension share the same ABI.
-
-The corresponding HPC runtime is fixed in `env.sh`: GNU programming
-environment, Cray MPICH 8.1.30 and parallel HDF5 1.14.3.1. Changing that stack
-requires rebuilding both mpi4py and h5py in the same Python environment.
-
-### Spectral API and tests
-
-`spec_forge` is the supported spectral API:
-
-```python
-from spec_forge import SpectralDiscretization, SpectralInterpolate
-```
-
-The historical `discr.discr_2d` API remains installed as a deprecated
-compatibility facade backed by `spec_forge`; new code should not use it.
-
-Run the numerical and compatibility tests from the source tree with:
-
-```bash
-python -m unittest discover -s tests -v
-```
+Le fichier `cfg_adastra.sh` conserve les options CMake du profil HPC existant.
+Le cœur spectral installé avec `pip` ne dépend pas de ce profil.

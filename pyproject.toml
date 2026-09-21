@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cheby-tools"
+version = "0.1.0"
+description = "Spectral post-processing tools for Chebyshev and Fourier grids"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.23",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+]
+
+[project.optional-dependencies]
+io = [
+    "h5py>=3.8",
+]
+dev = [
+    "build>=1.2",
+    "setuptools>=68",
+    "twine>=5",
+    "wheel",
+]
+
+[project.urls]
+Repository = "https://github.com/sabide/cheby-tools"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = [
+    "spec_forge",
+    "spec_forge.*",
+    "discr",
+    "discr.*",
+    "stats",
+    "stats.*",
+]
+exclude = [
+    "external*",
+    "tecio_wrapper*",
+    "tests*",
+]
