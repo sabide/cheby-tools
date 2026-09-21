@@ -65,17 +65,34 @@ class NativeTecIOTests(unittest.TestCase):
                     self.skipTest("test user can write to a mode-0555 directory")
 
                 output = (output_directory / "field.plt").resolve()
+                package_root = Path(tecio.__file__).resolve().parents[1]
                 code = f"""
+import os
+from pathlib import Path
 import numpy as np
+import cheby_tools
 from cheby_tools import Field, SpectralDiscretization
 from cheby_tools.tecio import write_plt
+expected_root = Path(os.environ[\"CHEBY_TEST_PACKAGE_ROOT\"]).resolve()
+actual_root = Path(cheby_tools.__file__).resolve().parents[1]
+if actual_root != expected_root:
+    raise SystemExit(f\"loaded {{actual_root}}, expected {{expected_root}}\")
 grid = SpectralDiscretization([0.0], [2.0 * np.pi], [8], [\"fourier\"])
 field = Field(np.sin(grid.nodes[0]), grid, \"u\")
 write_plt({str(output)!r}, field)
 """
+                environment = os.environ.copy()
+                environment["CHEBY_TEST_PACKAGE_ROOT"] = str(package_root)
+                environment["PYTHONPATH"] = os.pathsep.join(
+                    filter(
+                        None,
+                        (str(package_root), environment.get("PYTHONPATH")),
+                    )
+                )
                 result = subprocess.run(
                     [sys.executable, "-c", code],
                     cwd=read_only,
+                    env=environment,
                     text=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
