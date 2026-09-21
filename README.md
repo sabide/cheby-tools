@@ -22,11 +22,11 @@ Boost sont déjà fournis dans le dépôt : CMake ne télécharge aucune dépend
 
 ```bash
 cd <parent-directory>
-git clone --recurse-submodules -b update \
-  git@github.com:sabide/cheby-tools.git cheby-tools-update
+git clone --recurse-submodules \
+  git@github.com:sabide/cheby-tools.git cheby-tools
 python3 -m venv post-processing/.venv
 source post-processing/.venv/bin/activate
-python -m pip install -e ./cheby-tools-update
+python -m pip install -e ./cheby-tools
 ```
 
 La dernière commande installe `cheby-tools` et `_tecio` dans le venv actif du
@@ -37,7 +37,7 @@ recompile `_tecio`.
 Pour installer uniquement le cœur Python :
 
 ```bash
-python -m pip install -e ./cheby-tools-update \
+python -m pip install -e ./cheby-tools \
   -Ccmake.define.CHEBY_INSTALL_TECIO=OFF
 ```
 
@@ -47,7 +47,7 @@ python -m pip install -e ./cheby-tools-update \
 Pour développer le paquet et construire ses archives depuis le dépôt :
 
 ```bash
-cd cheby-tools-update
+cd cheby-tools
 python -m pip install -e '.[dev]'
 python -m unittest discover -s tests -v
 python -m build
@@ -138,22 +138,27 @@ python examples/write_plt.py
 
 ## Installation sur ADASTRA
 
-Charger d’abord la pile de compilation, puis créer le venv du projet de
-post-traitement et lancer la même installation :
+Le script dédié charge la pile de compilation, initialise le sous-module si
+nécessaire, crée le venv s’il n’existe pas et installe le paquet avec TecIO :
 
 ```bash
-module purge
-module load cpe/24.07
-module load PrgEnv-gnu/8.5.0
-module load cmake/4.0.3
-module load python/3.12.1
-python -m venv post-processing/.venv
-source post-processing/.venv/bin/activate
-python -m pip install -e ./cheby-tools-update
+cd <parent-directory>
+git clone --recurse-submodules \
+  git@github.com:sabide/cheby-tools.git cheby-tools
+cd cheby-tools
+./install_adastra.sh ../post-processing/.venv
+source ../post-processing/.venv/bin/activate
 ```
 
-Le dépôt doit avoir été cloné avec `--recurse-submodules`. Pour corriger un
-clonage existant incomplet :
+Le script est idempotent : le relancer réutilise le venv et recompile
+`_tecio`. Il refuse d’écraser un répertoire existant qui n’est pas un venv.
+Un clonage récursif reste recommandé, mais le script corrige aussi un clonage
+incomplet avec `git submodule update --init --recursive`.
+
+L’activation est volontairement laissée au shell appelant, car un script
+exécuté ne peut pas modifier durablement l’environnement de son parent.
+
+Pour initialiser manuellement les sous-modules :
 
 ```bash
 git submodule update --init --recursive
@@ -166,7 +171,7 @@ un préfixe CMake manuellement. Il n’est pas nécessaire pour l’installation
 normale avec `pip`.
 
 ```bash
-cd cheby-tools-update
+cd cheby-tools
 export CHEBY_PYTHON_ENV=<absolute-path>/post-processing/.venv
 source env.sh
 ./run_cmake.sh

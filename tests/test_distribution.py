@@ -109,7 +109,12 @@ class PackagingConfigurationTests(unittest.TestCase):
 class DistributionTests(unittest.TestCase):
     def copy_distribution_sources(self, destination):
         destination = Path(destination)
-        for filename in ("CMakeLists.txt", "pyproject.toml", "README.md"):
+        for filename in (
+            "CMakeLists.txt",
+            "pyproject.toml",
+            "README.md",
+            "install_adastra.sh",
+        ):
             shutil.copy2(REPOSITORY_ROOT / filename, destination / filename)
 
         for directory in ("cheby_tools", "examples", "native", "external"):
@@ -336,6 +341,7 @@ print(json.dumps({
                 "/pyproject.toml",
                 "/README.md",
                 "/CMakeLists.txt",
+                "/install_adastra.sh",
                 "/cheby_tools/__init__.py",
                 "/native/tecio/CMakeLists.txt",
                 "/native/tecio/tecio.cpp",
