@@ -336,6 +336,13 @@ print(json.dumps({
             self.assertEqual(len(archives), 1, archives)
             with tarfile.open(archives[0], "r:gz") as archive:
                 names = archive.getnames()
+                installer_member = next(
+                    member
+                    for member in archive.getmembers()
+                    if member.name.endswith("/install_adastra.sh")
+                )
+
+            self.assertTrue(installer_member.mode & 0o111)
 
             for suffix in (
                 "/pyproject.toml",
