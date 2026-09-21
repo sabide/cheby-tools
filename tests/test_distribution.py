@@ -73,7 +73,9 @@ class PackagingConfigurationTests(unittest.TestCase):
         self.assertFalse((REPOSITORY_ROOT / "MANIFEST.in").exists())
 
     def test_scikit_build_context_allows_python_only_install(self):
-        with tempfile.TemporaryDirectory(prefix="cheby-cmake-python-only-") as tmp:
+        with tempfile.TemporaryDirectory(
+            prefix="cheby-cmake-python-only-"
+        ) as tmp:
             result = self.run_cmake(
                 REPOSITORY_ROOT,
                 Path(tmp) / "build",
@@ -84,13 +86,20 @@ class PackagingConfigurationTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout)
 
     def test_missing_pybind11_reports_submodule_recovery_command(self):
-        with tempfile.TemporaryDirectory(prefix="cheby-missing-pybind11-") as tmp:
+        with tempfile.TemporaryDirectory(
+            prefix="cheby-missing-pybind11-"
+        ) as tmp:
             source = Path(tmp) / "project"
             shutil.copytree(
                 REPOSITORY_ROOT,
                 source,
                 ignore=shutil.ignore_patterns(
-                    ".git", "build", "dist", "__pycache__", "pybind11"
+                    ".git",
+                    ".superpowers",
+                    "build",
+                    "dist",
+                    "__pycache__",
+                    "pybind11",
                 ),
             )
             result = self.run_cmake(source, Path(tmp) / "build")
