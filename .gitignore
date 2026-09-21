@@ -3,6 +3,9 @@ build
 build-*
 dist/
 .venv/
+build/
+build-*/
+*.egg-info/
 *.plt 
 *~
 __pycache__

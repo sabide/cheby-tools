@@ -3,8 +3,9 @@ set -euo pipefail
 
 : "${CHEBY_PYTHON_ENV:?Source env.sh before running this script}"
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-: "${CHEBY_BOOST_INCLUDE_DIR:=${SCRIPT_DIR}/external/boost}"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BUILD_DIR="${CHEBY_BUILD_DIR:-${PROJECT_ROOT}/build}"
+: "${CHEBY_BOOST_INCLUDE_DIR:=${PROJECT_ROOT}/external/boost}"
 
 if [[ "${VIRTUAL_ENV:-}" != "$CHEBY_PYTHON_ENV" ]]; then
   echo "Expected active Python environment: $CHEBY_PYTHON_ENV" >&2
@@ -17,17 +18,15 @@ if [[ ! -f "${CHEBY_BOOST_INCLUDE_DIR}/boost/version.hpp" ]]; then
   exit 1
 fi
 
-SITEPKG=$(python -c "import site; print(site.getsitepackages()[0])")
-PREFIX=$(python -c "import sys; print(sys.prefix)")
 REL_SITEPKG=$(python -c "import os, site, sys; print(os.path.relpath(site.getsitepackages()[0], sys.prefix))")
 
-cmake .. \
-  -DCMAKE_INSTALL_PREFIX="$PREFIX" \
+cmake -S "${PROJECT_ROOT}" -B "${BUILD_DIR}" \
+  -DCMAKE_INSTALL_PREFIX="${CHEBY_PYTHON_ENV}" \
   -DCHEBY_PYTHON_INSTALL_DIR="$REL_SITEPKG" \
   -DCHEBY_BOOST_INCLUDE_DIR="$CHEBY_BOOST_INCLUDE_DIR" \
   -DPython_EXECUTABLE="$CHEBY_PYTHON_ENV/bin/python"
 
-cmake --build . -j
-cmake --install .
+cmake --build "${BUILD_DIR}" -j
+cmake --install "${BUILD_DIR}"
 
-"$CHEBY_PYTHON_ENV/bin/python" "$(dirname "$0")/check_python_env.py"
+"$CHEBY_PYTHON_ENV/bin/python" "${PROJECT_ROOT}/check_python_env.py"

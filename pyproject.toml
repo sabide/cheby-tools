@@ -21,9 +21,6 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-io = [
-    "h5py>=3.8",
-]
 dev = [
     "build>=1.2",
     "setuptools>=68",
@@ -37,15 +34,11 @@ Repository = "https://github.com/sabide/cheby-tools"
 [tool.setuptools.packages.find]
 where = ["."]
 include = [
-    "spec_forge",
-    "spec_forge.*",
-    "discr",
-    "discr.*",
-    "stats",
-    "stats.*",
+    "cheby_tools",
+    "cheby_tools.*",
 ]
 exclude = [
     "external*",
-    "tecio_wrapper*",
+    "native*",
     "tests*",
 ]

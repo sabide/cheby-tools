@@ -1,12 +1,10 @@
 include README.md
 include pyproject.toml
-recursive-include spec_forge *.py
-recursive-include discr *.py
-recursive-include stats *.py
+recursive-include cheby_tools *.py
 recursive-include examples *.py
-recursive-include tests *.py
 prune external
-prune tecio_wrapper
+prune native
+prune tests
 global-exclude __pycache__
 global-exclude *.py[cod]
 global-exclude .DS_Store
