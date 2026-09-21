@@ -1,6 +1,7 @@
 
 import numpy as np
 from numpy import pi
+from numbers import Integral
 import string
 
 
@@ -146,6 +147,10 @@ class FourierDiffOp1D(AxisOp1D):
         ahat = np.fft.fft(arr, axis=self.axis)
 
         factor = (1j * self.k) ** self.order
+        # The even-grid Nyquist slot represents the symmetric cosine mode.
+        # Its odd derivatives vanish at every node of the original grid.
+        if self.N % 2 == 0 and self.order % 2 == 1:
+            factor[self.N // 2] = 0.0
         shape = [1] * arr.ndim
         shape[self.axis] = self.N
         factor = factor.reshape(shape)
@@ -186,12 +191,36 @@ class SpectralDiscretization:
         if self.dim < 1 or self.dim > 3:
             raise ValueError("Only 1D, 2D, and 3D are supported.")
 
+        for axis, size in enumerate(n):
+            if isinstance(size, (bool, np.bool_)) or not isinstance(size, Integral):
+                raise TypeError(
+                    f"Grid size n[{axis}] must be an integer, got {size!r}."
+                )
+
         self.xmin = [float(v) for v in xmin]
         self.xmax = [float(v) for v in xmax]
         self.n = [int(v) for v in n]
         self.bases = [str(b).lower() for b in bases]
 
-        self.L = [float(xmax[d] - xmin[d]) for d in range(self.dim)]
+        lengths = []
+        for axis, (a, b) in enumerate(zip(self.xmin, self.xmax)):
+            if not (np.isfinite(a) and np.isfinite(b)):
+                raise ValueError(
+                    f"Domain bounds on axis {axis} must be finite, got [{a}, {b}]."
+                )
+            if not a < b:
+                raise ValueError(
+                    f"Domain bounds on axis {axis} must satisfy xmin < xmax, "
+                    f"got [{a}, {b}]."
+                )
+            length = b - a
+            if not np.isfinite(length):
+                raise ValueError(
+                    f"Domain length on axis {axis} must be finite, got {length}."
+                )
+            lengths.append(length)
+
+        self.L = lengths
 
         self.nodes_hat = []
         self.nodes = []
@@ -366,8 +395,20 @@ class SpectralDiscretization:
     def cheb_eval_matrix(x_hat, N):
         """
         Evaluation matrix T_k(x_m), shape (M,N).
+
+        Targets outside [-1, 1] are rejected.  A tolerance of 64 machine
+        epsilons is allowed at the endpoints to absorb floating-point roundoff.
         """
-        x_hat = np.asarray(x_hat)
+        if np.iscomplexobj(x_hat):
+            raise TypeError("Chebyshev interpolation targets must be real.")
+        x_hat = np.asarray(x_hat, dtype=float)
+        if not np.all(np.isfinite(x_hat)):
+            raise ValueError("Chebyshev interpolation targets must be finite.")
+
+        tolerance = 64.0 * np.finfo(float).eps
+        if np.any(x_hat < -1.0 - tolerance) or np.any(x_hat > 1.0 + tolerance):
+            raise ValueError("Chebyshev interpolation targets must lie in [-1, 1].")
+
         theta = np.arccos(np.clip(x_hat, -1.0, 1.0))
         k = np.arange(N)[:, None]
         return np.cos(k * theta).T
@@ -438,6 +479,16 @@ class SpectralDiscretization:
     @staticmethod
     def fourier_quadrature_weights(N, a, b):
         return np.full(N, (b - a) / N, dtype=float)
+
+    @staticmethod
+    def _interval_roundoff_tolerance(a, b):
+        """Endpoint tolerance based on 64 ULPs and the interval scale."""
+        eps = np.finfo(float).eps
+        return 64.0 * max(
+            abs(np.spacing(a)),
+            abs(np.spacing(b)),
+            eps * (b - a),
+        )
 
     # --------------------------------------------------------
     # Helpers
@@ -567,14 +618,24 @@ class SpectralDiscretization:
         """
         Evaluation matrix for Fourier coefficients in FFT ordering:
             M[m,k] = exp(i * k_fft[k] * x_hat[m])
+
+        For even N, the Nyquist coefficient uses the symmetric continuation
+        cos((N/2) * x_hat), consistently with grid-to-grid interpolation.
         """
         x_hat = np.asarray(x_hat)
         kk = 2.0 * np.pi * np.fft.fftfreq(N, d=(2.0 * np.pi) / N)
-        return np.exp(1j * np.outer(x_hat, kk))
+        matrix = np.exp(1j * np.outer(x_hat, kk))
+        if N % 2 == 0:
+            matrix[:, N // 2] = np.cos((N // 2) * x_hat)
+        return matrix
 
     def interpolate(self, coeffs, *x_targets):
         """
         Evaluate full spectral coefficients on arbitrary tensor-product target grids.
+
+        Chebyshev targets must lie inside their physical interval, apart from
+        an endpoint tolerance of 64 floating-point ULPs.  Fourier targets are
+        evaluated periodically and may lie outside the base interval.
         """
         if len(x_targets) != self.dim:
             raise ValueError("Provide one target array per direction.")
@@ -583,12 +644,28 @@ class SpectralDiscretization:
 
         for axis in range(self.dim):
             basis = self.bases[axis]
-            xt = np.asarray(x_targets[axis])
+            target = x_targets[axis]
+            if np.iscomplexobj(target):
+                raise TypeError(
+                    f"Interpolation targets on axis {axis} must be real."
+                )
+            xt = np.asarray(target, dtype=float)
+            if not np.all(np.isfinite(xt)):
+                raise ValueError(
+                    f"Interpolation targets on axis {axis} must be finite."
+                )
             a = self.xmin[axis]
             b = self.xmax[axis]
             N = self.n[axis]
 
             if basis == "chebyshev":
+                tolerance = self._interval_roundoff_tolerance(a, b)
+                if np.any(xt < a - tolerance) or np.any(xt > b + tolerance):
+                    raise ValueError(
+                        f"Chebyshev interpolation targets on axis {axis} "
+                        f"must lie in [{a}, {b}]."
+                    )
+                xt = np.clip(xt, a, b)
                 xhat = 2.0 * (xt - a) / (b - a) - 1.0
                 M = self.cheb_eval_matrix(xhat, N)
 
@@ -765,7 +842,8 @@ class FourierInterpBetween1D(InterpBetween1D):
     Input  : nodal values on Nsrc Fourier grid
     Output : nodal values on Ndst Fourier grid
 
-    If input is real, uses rfft/irfft to preserve Hermitian symmetry exactly.
+    Even-grid Nyquist coefficients are split when refining and recombined when
+    coarsening so that amplitudes are preserved for both real and complex data.
     """
     def __init__(self, Nsrc, Ndst, a, b, axis=0, name="T", real_output_if_close=True):
         super().__init__(axis=axis, basis="fourier", name=name)
@@ -793,47 +871,73 @@ class FourierInterpBetween1D(InterpBetween1D):
                 f"arr.shape[{self.axis}]={arr.shape[self.axis]} != Nsrc={self.Nsrc}"
             )
 
-        # ----------------------------------------------------
-        # Real input: use rfft/irfft to preserve reality exactly
-        # ----------------------------------------------------
         if np.isrealobj(arr):
             ahat = np.fft.rfft(arr, axis=self.axis) / self.Nsrc
+            ahat = np.moveaxis(ahat, self.axis, 0)
+            out_hat = np.zeros(
+                (self.Ndst // 2 + 1,) + ahat.shape[1:], dtype=ahat.dtype
+            )
 
-            ahat = np.moveaxis(ahat, self.axis, 0)   # spectral axis first
-            Ksrc = ahat.shape[0]
-            Kdst = self.Ndst // 2 + 1
+            # Copy frequencies that are ordinary (non-Nyquist) modes on both
+            # grids.  The zero mode is included in this range.
+            src_last_ordinary = (self.Nsrc - 1) // 2
+            dst_last_ordinary = (self.Ndst - 1) // 2
+            last_ordinary = min(src_last_ordinary, dst_last_ordinary)
+            out_hat[:last_ordinary + 1, ...] = ahat[:last_ordinary + 1, ...]
 
-            out_hat = np.zeros((Kdst,) + ahat.shape[1:], dtype=ahat.dtype)
+            # A source Nyquist coefficient becomes a pair of ordinary modes
+            # on a finer grid, so rfft stores half its amplitude there.
+            if self.Nsrc % 2 == 0:
+                src_nyquist = self.Nsrc // 2
+                if self.Ndst == self.Nsrc:
+                    out_hat[src_nyquist, ...] = np.real(ahat[src_nyquist, ...])
+                elif src_nyquist <= dst_last_ordinary:
+                    out_hat[src_nyquist, ...] = (
+                        0.5 * np.real(ahat[src_nyquist, ...])
+                    )
 
-            kcopy = min(Ksrc, Kdst)
-            out_hat[:kcopy, ...] = ahat[:kcopy, ...]
-
-            # Nyquist handling when both sizes are even
-            # rfft stores Nyquist as the last coefficient, which must remain real.
-            if self.Nsrc % 2 == 0 and self.Ndst % 2 == 0 and kcopy == Ksrc == Kdst:
-                out_hat[-1, ...] = np.real(out_hat[-1, ...])
+            # Conversely, the +/- destination-Nyquist pair aliases into one
+            # real rfft coefficient when coarsening.
+            if self.Ndst % 2 == 0 and self.Ndst != self.Nsrc:
+                dst_nyquist = self.Ndst // 2
+                if dst_nyquist <= src_last_ordinary:
+                    out_hat[dst_nyquist, ...] = (
+                        2.0 * np.real(ahat[dst_nyquist, ...])
+                    )
 
             out = np.fft.irfft(self.Ndst * out_hat, n=self.Ndst, axis=0)
-            out = np.moveaxis(out, 0, self.axis)
-            return out
+            return np.moveaxis(out, 0, self.axis)
 
-        # ----------------------------------------------------
-        # Complex input: fallback to full fft/ifft
-        # ----------------------------------------------------
         ahat = np.fft.fft(arr, axis=self.axis) / self.Nsrc
         ahat = np.moveaxis(ahat, self.axis, 0)
 
         out_hat = np.zeros((self.Ndst,) + ahat.shape[1:], dtype=ahat.dtype)
 
-        # copy low positive frequencies + low negative frequencies
+        # Store coefficients by their signed integer wavenumber.  On an even
+        # source grid, the Nyquist slot represents both +N/2 and -N/2; split it
+        # equally to define the usual trigonometric interpolant.
+        src_modes = np.rint(np.fft.fftfreq(self.Nsrc) * self.Nsrc).astype(int)
+        coefficients = {
+            int(mode): ahat[index, ...]
+            for index, mode in enumerate(src_modes)
+        }
         if self.Nsrc % 2 == 0:
-            kpos_src = self.Nsrc // 2
-            out_hat[:kpos_src, ...] = ahat[:kpos_src, ...]
-            out_hat[-(self.Nsrc - kpos_src):, ...] = ahat[kpos_src:, ...]
-        else:
-            kpos_src = (self.Nsrc + 1) // 2
-            out_hat[:kpos_src, ...] = ahat[:kpos_src, ...]
-            out_hat[-(self.Nsrc - kpos_src):, ...] = ahat[kpos_src:, ...]
+            nyquist = self.Nsrc // 2
+            nyquist_coefficient = coefficients[-nyquist]
+            coefficients[-nyquist] = 0.5 * nyquist_coefficient
+            coefficients[nyquist] = 0.5 * nyquist_coefficient
+
+        # On an even destination grid, +N/2 and -N/2 are the same nodal mode,
+        # so both contributions must be combined in its single FFT slot.
+        dst_modes = np.rint(np.fft.fftfreq(self.Ndst) * self.Ndst).astype(int)
+        dst_nyquist = self.Ndst // 2 if self.Ndst % 2 == 0 else None
+        for index, mode in enumerate(dst_modes):
+            if dst_nyquist is not None and mode == -dst_nyquist:
+                negative = coefficients.get(-dst_nyquist, 0.0)
+                positive = coefficients.get(dst_nyquist, 0.0)
+                out_hat[index, ...] = negative + positive
+            elif mode in coefficients:
+                out_hat[index, ...] = coefficients[mode]
 
         out = np.fft.ifft(self.Ndst * out_hat, axis=0)
         out = np.moveaxis(out, 0, self.axis)
