@@ -25,16 +25,22 @@ void check_dimension(py::ssize_t size) {
 }
 
 std::string parent_directory(const std::string& filename) {
+#ifdef _WIN32
     const std::size_t separator = filename.find_last_of("/\\");
+#else
+    const std::size_t separator = filename.find_last_of('/');
+#endif
     if (separator == std::string::npos) {
         return ".";
     }
     if (separator == 0) {
         return filename.substr(0, 1);
     }
+#ifdef _WIN32
     if (separator == 2 && filename.size() > 2 && filename[1] == ':') {
         return filename.substr(0, 3);
     }
+#endif
     return filename.substr(0, separator);
 }
 

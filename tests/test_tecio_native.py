@@ -1,4 +1,6 @@
 import os
+import subprocess
+import sys
 import tempfile
 from pathlib import Path
 import unittest
@@ -22,6 +24,7 @@ class NativeTecIOTests(unittest.TestCase):
         fields = [
             Field(np.sin(x), grid, "u"),
             Field(y**2, grid, "velocity magnitude"),
+            Field(x - y, grid, "pressure, total"),
             Field(x + y, grid, "é" * 64),
         ]
 
@@ -44,11 +47,6 @@ class NativeTecIOTests(unittest.TestCase):
                 )
 
     def test_absolute_output_uses_parent_directory_for_scratch_files(self):
-        grid = SpectralDiscretization(
-            [0.0], [2.0 * np.pi], [8], ["fourier"]
-        )
-        field = Field(np.sin(grid.nodes[0]), grid, "u")
-
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             read_only = root / "read-only"
@@ -56,14 +54,47 @@ class NativeTecIOTests(unittest.TestCase):
             read_only.mkdir()
             output_directory.mkdir()
             read_only.chmod(0o555)
-            original_directory = Path.cwd()
             try:
-                os.chdir(read_only)
+                probe = read_only / "probe"
+                try:
+                    probe.write_text("probe", encoding="utf-8")
+                except PermissionError:
+                    pass
+                else:
+                    probe.unlink()
+                    self.skipTest("test user can write to a mode-0555 directory")
+
                 output = (output_directory / "field.plt").resolve()
-                tecio.write_plt(output, field)
+                code = f"""
+import numpy as np
+from cheby_tools import Field, SpectralDiscretization
+from cheby_tools.tecio import write_plt
+grid = SpectralDiscretization([0.0], [2.0 * np.pi], [8], [\"fourier\"])
+field = Field(np.sin(grid.nodes[0]), grid, \"u\")
+write_plt({str(output)!r}, field)
+"""
+                result = subprocess.run(
+                    [sys.executable, "-c", code],
+                    cwd=read_only,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 0, result.stdout)
             finally:
-                os.chdir(original_directory)
                 read_only.chmod(0o755)
+
+            self.assertGreater(output.stat().st_size, 0)
+
+    @unittest.skipIf(os.name == "nt", "backslash is a path separator on Windows")
+    def test_posix_backslash_in_filename_is_not_a_path_separator(self):
+        grid = SpectralDiscretization([0.0], [1.0], [4], ["fourier"])
+        field = Field(np.ones(4), grid, "u")
+
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "field\\name.plt"
+            tecio.write_plt(output, field)
 
             self.assertGreater(output.stat().st_size, 0)
 

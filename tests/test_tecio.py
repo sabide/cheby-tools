@@ -56,12 +56,18 @@ class TecIOAdapterTests(unittest.TestCase):
 
     def test_field_names_may_contain_spaces_but_not_tecio_separators(self):
         backend = RecordingBackend()
-        field = Field(self.x, self.grid, "velocity magnitude")
+        fields = [
+            Field(self.x, self.grid, "velocity magnitude"),
+            Field(self.y, self.grid, "pressure, total"),
+        ]
 
         with mock.patch.object(tecio, "_backend", backend):
-            tecio.write_plt("field.plt", field)
+            tecio.write_plt("field.plt", fields)
 
-        self.assertEqual(backend.calls[0][1], ["x", "y", "velocity magnitude"])
+        self.assertEqual(
+            backend.calls[0][1],
+            ["x", "y", "velocity magnitude", "pressure, total"],
+        )
 
         for name in ("a" * 128, "é" * 64):
             with self.subTest(accepted_name=name), mock.patch.object(
@@ -74,18 +80,24 @@ class TecIOAdapterTests(unittest.TestCase):
         for name in ("line\nbreak", "null\0byte"):
             with self.subTest(name=name), mock.patch.object(
                 tecio, "_backend", backend
-            ), self.assertRaisesRegex(ValueError, "TecIO"):
-                tecio.write_plt(
-                    "field.plt", Field(self.x, self.grid, name)
-                )
+            ):
+                with self.assertRaisesRegex(ValueError, "TecIO") as caught:
+                    tecio.write_plt(
+                        "field.plt", Field(self.x, self.grid, name)
+                    )
+                self.assertIn(repr(name), str(caught.exception))
 
         for name in ("a" * 129, "é" * 65):
             with self.subTest(rejected_name=name), mock.patch.object(
                 tecio, "_backend", backend
-            ), self.assertRaisesRegex(ValueError, "128 UTF-8 bytes"):
-                tecio.write_plt(
-                    "field.plt", Field(self.x, self.grid, name)
-                )
+            ):
+                with self.assertRaisesRegex(
+                    ValueError, "128 UTF-8 bytes"
+                ) as caught:
+                    tecio.write_plt(
+                        "field.plt", Field(self.x, self.grid, name)
+                    )
+                self.assertIn(repr(name), str(caught.exception))
 
     def test_equivalent_distinct_grids_are_accepted(self):
         other = self.make_grid()

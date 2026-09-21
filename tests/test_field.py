@@ -63,8 +63,10 @@ class FieldTests(unittest.TestCase):
             ):
                 Field(values, self.grid, "u")
 
-        integer_field = Field(np.ones(shape, dtype=np.int32), self.grid, "u")
-        self.assertEqual(integer_field.values.dtype, np.int32)
+        for dtype in (np.int32, np.uint32, np.float64, np.complex128):
+            with self.subTest(accepted_dtype=dtype):
+                field = Field(np.ones(shape, dtype=dtype), self.grid, "u")
+                self.assertEqual(field.values.dtype, dtype)
 
     def test_constructor_rejects_invalid_grid_and_name(self):
         with self.assertRaises(TypeError):
