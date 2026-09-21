@@ -9,7 +9,9 @@ from cheby_tools.spectral import SpectralInterpolate
 
 class PublicApiTests(unittest.TestCase):
     def test_public_api_exports_only_supported_symbols(self):
-        self.assertEqual(cheby_tools.__all__, ["SpectralDiscretization"])
+        self.assertEqual(
+            cheby_tools.__all__, ["Field", "SpectralDiscretization"]
+        )
         self.assertFalse(hasattr(cheby_tools, "SpectralInterpolate"))
         self.assertFalse(hasattr(cheby_tools, "np"))
 

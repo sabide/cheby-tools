@@ -486,8 +486,33 @@ class SpectralDiscretization:
     # --------------------------------------------------------
     # Differential / transform interface
     # --------------------------------------------------------
-    def diff(self, phi, axis):
-        return self.diff_ops[axis] @ phi
+    def diff(self, phi, axis, order=1):
+        if isinstance(axis, (bool, np.bool_)) or not isinstance(axis, Integral):
+            raise TypeError("axis must be an integer.")
+        axis = int(axis)
+        if not 0 <= axis < self.dim:
+            raise ValueError(f"Invalid axis {axis} for dim={self.dim}.")
+        if isinstance(order, (bool, np.bool_)) or not isinstance(order, Integral):
+            raise TypeError("order must be an integer.")
+        order = int(order)
+        if order < 1:
+            raise ValueError("order must be at least 1.")
+
+        if self.bases[axis] == "fourier":
+            operator = FourierDiffOp1D(
+                self.n[axis],
+                self.xmin[axis],
+                self.xmax[axis],
+                axis=axis,
+                order=order,
+                name=f"d{axis}^{order}",
+            )
+            return operator @ phi
+
+        out = np.asarray(phi)
+        for _ in range(order):
+            out = self.diff_ops[axis] @ out
+        return out
 
     def expand(self, phi, axis):
         return self.expand_ops[axis] @ phi
